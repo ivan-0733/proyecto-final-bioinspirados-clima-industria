@@ -274,13 +274,31 @@ class ARMProblem(Problem):
             'casual-supp': (0.0, 1.0),
             'casual-conf': (0.0, 1.0),
             'maxConf': (0.0, 1.0),
+            'casual_support': (0.0, 1.0),
+            'casual_confidence': (0.0, 1.0),
+            'max_conf': (0.0, 1.0),
+            
             # Scenario 2 - Correlation
             'jaccard': (0.0, 1.0),
             'cosine': (0.0, 1.0),
-            'phi': (-1.0, 1.0),  # Range is [-1, 1], needs normalization
-            'kappa': (-1.0, 1.0),  # Range is [-1, 1], needs normalization
-            'k_measure': (-1.0, 1.0),  # Alias for kappa
-            'phi_coefficient': (-1.0, 1.0),  # Alias for phi
+            'phi': (-1.0, 1.0),
+            'phi_coefficient': (-1.0, 1.0),
+            'kappa': (-1.0, 1.0),
+            'k_measure': (-1.0, 1.0),
+            
+            # Climate Scenario - 5 Objectives (already normalized by ClimateMetrics)
+            'co2_emission': (0.0, 1.0),
+            'energy_consumption': (0.0, 1.0),
+            'renewable_share': (0.0, 1.0),
+            'industrial_activity_index': (0.0, 1.0),
+            'energy_price': (0.0, 1.0),
+            
+            # Legacy aliases for backward compatibility
+            'avg_co2': (0.0, 1.0),
+            'avg_consumption': (0.0, 1.0),
+            'avg_renewable': (0.0, 1.0),
+            'avg_industry': (0.0, 1.0),
+            'avg_price': (0.0, 1.0),
         }
 
         super().__init__(n_var=self.n_var, 
@@ -347,22 +365,22 @@ class ARMProblem(Problem):
             # get_metrics returns (values_list, errors_dict)
             vals, errors = self.metrics.get_metrics(ant, con, self.objectives)
             
-            # Extract and normalize objectives
+            # Extract and process objectives
             obj_values = []
             for metric_name, val in zip(self.objectives, vals):
                 if val is None:
                     # Penalty for undefined metric
                     obj_values.append(2.0) 
                 else:
-                    # Normalize to [0, 1] to ensure all metrics are on the same scale
-                    # This is CRITICAL for PBI decomposition to work correctly
-                    normalized = self._normalize_metric(val, metric_name)
-                    
-                    # Negate for minimization (pymoo minimizes by default)
-                    # Higher metric value → lower objective value → better solution
-                    obj_values.append(-normalized)
-                
-            F[i, :] = obj_values
+                    # Check if using ClimateMetrics (already handles normalization + direction)
+                    if hasattr(self.metrics, 'METRIC_NAMES'):
+                        # Climate scenario: metrics already normalized and direction-adjusted
+                        # ClimateMetrics returns values ready for minimization
+                        obj_values.append(val)
+                    else:
+                        # Other scenarios: normalize and negate for maximization
+                        normalized = self._normalize_metric(val, metric_name)
+                        obj_values.append(-normalized)
         
         out["F"] = F
 class MOEAD_ARM:

@@ -1,0 +1,94 @@
+{
+    "experiment": {
+      "name": "MOEAD_Climate_5_Objectives",
+      "description": "Optimización multiobjetivo clima-industria con MOEA/D - 5 objetivos",
+      "scenario": "climate_5_obj",
+      "random_seed": 42,
+      "output_root": "results"
+    },
+    "dataset": {
+      "name": "climate_energy",
+      "processed_path": "data/processed/climate_dataset/climate_processed.csv",
+      "raw_path": "data/raw/climate_dataset/global_climate_energy_2020_2024.csv",
+      "supports_path": "data/processed/climate_dataset/supports.json",
+      "metadata_path": "data/raw/climate_dataset/climate_metadata.json"
+    },
+    "use_sampling": false,
+    "algorithm": {
+      "generations": 200,
+      "population_size": 126,
+      "logging_interval": 5,
+      "termination": {
+        "enabled": true,
+        "ftol": 0.00005,
+        "period": 40
+      },
+      "initialization": {
+        "use_pregenerated": false,
+        "max_attempts": 10000
+      },
+      "decomposition": {
+        "method": "pbi",
+        "params": { "theta": 5.0 }
+      },
+      "neighborhood": {
+        "size": 20,
+        "replacement_size": 2,
+        "selection_probability": 0.9
+      },
+      "operators": {
+        "crossover": {
+          "probability": {
+            "initial": 0.9,
+            "min": 0.6,
+            "max": 1.0
+          }
+        },
+        "mutation": {
+          "method": "conservative",
+          "active_ops": ["extension", "contraction", "replacement"],
+          "probability": {
+            "initial": 0.2,
+            "min": 0.05,
+            "max": 0.5
+          },
+          "repair_attempts": 10,
+          "duplicate_attempts": 10,
+          "reproducible_mode": true,
+          "max_operations": 1000,
+          "timeout": 5.0,
+          "timeout_per_attempt": 15.0
+        }
+      },
+      "stuck_detection": {
+        "enabled": true,
+        "window": 15,
+        "min_new": 1,
+        "hv_window": 20,
+        "hv_tol": 1e-5
+      }
+    },
+    "objectives": {
+      "selected": [
+        "co2_emission",
+        "energy_consumption",
+        "renewable_share",
+        "industrial_activity_index",
+        "energy_price"
+      ]
+    },
+    "constraints": {
+      "rule_validity": {
+        "min_antecedent_items": 1,
+        "min_consequent_items": 1,
+        "max_antecedent_items": 4,
+        "max_consequent_items": 3
+      },
+      "metric_thresholds": {},
+      "exclusions": {
+        "fixed_antecedents": [],
+        "fixed_consequents": [],
+        "forbidden_pairs": []
+      }
+    }
+  }

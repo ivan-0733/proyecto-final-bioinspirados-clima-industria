@@ -1,0 +1,16 @@
+{
+    "dataset": {
+      "name": "climate_dataset",
+      "path": "data/raw/climate_dataset/global_climate_energy_2020_2024.csv",
+      "metadata_path": "data/raw/climate_dataset/climate_metadata.json"
+    },
+    "algorithm": {
+      "pop_size": 100,
+      "n_gen": 100,
+      "n_objectives": 5
+    },
+    "objectives": {
+      "metrics": ["avg_co2", "avg_consumption", "avg_renewable", "avg_industry", "avg_price"],
+      "metric_class": "climate_5_obj" 
+    }
+  }

@@ -9,6 +9,7 @@ from src.metrics.scenario1 import Scenario1Metrics
 from src.metrics.scenario2 import Scenario2Metrics
 from src.core.exceptions import ConfigurationError
 
+from .climate_metrics import ClimateMetrics
 
 class MetricsFactory:
     """
@@ -20,6 +21,7 @@ class MetricsFactory:
     _registry: Dict[str, type] = {
         'scenario_1': Scenario1Metrics,
         'scenario_2': Scenario2Metrics,
+        'climate_5_obj': ClimateMetrics,
     }
     
     @classmethod

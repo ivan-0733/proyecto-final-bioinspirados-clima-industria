@@ -1,0 +1,113 @@
+{
+  "experiment": {
+    "name": "MOEAD_ARM_Diabetes_Scenario_2",
+    "description": "Optimización de reglas de asociación usando MOEA/D. Escenario 2: Maximizar Jaccard, Coseno, Phi, Kappa",
+    "scenario": "scenario_2",
+    "random_seed": 42,
+    "output_root": "results"
+  },
+  "use_sampling": false,
+  "algorithm": {
+    "generations": 300,
+    "population_size": 100,
+    "logging_interval": 5,
+    "termination": {
+      "enabled": true,
+      "ftol": 0.0001,
+      "period": 30
+    },
+    "initialization": {
+      "use_pregenerated": false,
+      "max_attempts": 5000
+    },
+    "decomposition": {
+      "method": "tchebycheff",
+      "params": { "theta": 5.0 }
+    },
+    "neighborhood": {
+      "size": 3,
+      "replacement_size": 3,
+      "selection_probability": 0.3
+    },
+    "operators": {
+      "crossover": {
+        "probability": {
+          "initial": 0.3,
+          "min": 0.3,
+          "max": 0.8
+        }
+      },
+      "mutation": {
+        "method": "conservative",
+        "active_ops": ["extension", "contraction", "replacement"],
+        "probability": {
+          "initial": 0.3,
+          "min": 0.3,
+          "max": 0.6
+        },
+        "repair_attempts": 5,
+        "duplicate_attempts": 5,
+        "reproducible_mode": true,
+        "max_operations": 500,
+        "timeout": 2.0,
+        "timeout_per_attempt": 10.0
+      }
+    },
+    "stuck_detection": {
+      "enabled": true,
+      "window": 5,
+      "min_new": 1,
+      "hv_window": 10,
+      "hv_tol": 1e-4
+    }
+  },
+  "objectives": {
+    "selected": [
+      "jaccard",
+      "cosine",
+      "phi",
+      "kappa"
+    ]
+  },
+  "constraints": {
+    "rule_validity": {
+      "min_antecedent_items": 1,
+      "min_consequent_items": 1,
+      "max_antecedent_items": 11,
+      "max_consequent_items": 11
+    },
+    "metric_thresholds": {
+      "jaccard": { "min": 0.0, "max": 1.0 },
+      "cosine": { "min": 0.0, "max": 1.0 },
+      "phi": { "min": -1.0, "max": 1.0 },
+      "kappa": { "min": -1.0, "max": 1.0 }
+    },
+    "exclusions": {
+      "fixed_antecedents": ["diabetes"],
+      "fixed_consequents": ["age", "bmi"],
+      "forbidden_pairs": [
+        ["age", "bmi"],
+        ["blood_glucose_level", "diabetes"],
+        ["age", "blood_glucose_level"], 
+        ["age", "gender"],
+        ["gender", "diabetes"],
+        ["hbA1c_level", "diabetes"],
+        ["age", "smoking_history"],
+        ["gender", "smoking_history"],
+        ["age", "diabetes"],
+        ["smoking_history", "bmi"],
+        ["smoking_history", "blood_glucose_level"],
+        ["smoking_history", "diabetes"],
+        ["age", "diabetes"],
+        ["blood_glucose_level", "hbA1c_level"],
+        ["bmi", "blood_glucose_level"],
+        ["age", "hbA1c_level"],
+        ["bmi", "diabetes"],
+        ["race", "diabetes"],
+        ["gender", "blood_glucose_level"],
+        ["gender", "bmi"],
+        ["smoking_history", "hbA1c_level"]
+      ]
+    }
+  }
+}

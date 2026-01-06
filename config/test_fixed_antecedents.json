@@ -1,0 +1,88 @@
+{
+  "experiment": {
+    "name": "Test_Fixed_Antecedents",
+    "description": "Test configuration for fixed_antecedents feature",
+    "scenario": "scenario_1",
+    "random_seed": 42,
+    "output_root": "results"
+  },
+  "use_sampling": false,
+  "algorithm": {
+    "generations": 50,
+    "population_size": 20,
+    "logging_interval": 10,
+    "termination": {
+      "enabled": true,
+      "ftol": 0.0001,
+      "period": 20
+    },
+    "initialization": {
+      "max_attempts": 5000
+    },
+    "decomposition": {
+      "method": "tchebycheff",
+      "params": {}
+    },
+    "neighborhood": {
+      "size": 3,
+      "replacement_size": 3,
+      "selection_probability": 0.3
+    },
+    "operators": {
+      "crossover": {
+        "probability": {
+          "initial": 0.7,
+          "min": 0.5,
+          "max": 0.8
+        }
+      },
+      "mutation": {
+        "method": "conservative",
+        "active_ops": ["extension", "contraction", "replacement"],
+        "probability": {
+          "initial": 0.4,
+          "min": 0.3,
+          "max": 0.6
+        },
+        "repair_attempts": 5,
+        "duplicate_attempts": 5,
+        "reproducible_mode": true,
+        "max_operations": 500,
+        "timeout": 2.0,
+        "timeout_per_attempt": 10.0
+      }
+    },
+    "stuck_detection": {
+      "enabled": true,
+      "window": 5,
+      "min_new": 1,
+      "hv_window": 10,
+      "hv_tol": 1e-4
+    }
+  },
+  "objectives": {
+    "selected": [
+      "casual-supp",
+      "casual-conf",
+      "maxConf"
+    ]
+  },
+  "constraints": {
+    "rule_validity": {
+      "min_antecedent_items": 1,
+      "min_consequent_items": 1,
+      "max_antecedent_items": 4,
+      "max_consequent_items": 2
+    },
+    "metric_thresholds": {
+      "casual-supp": { "min": 0.01, "max": 1.0 },
+      "casual-conf": { "min": 0.5, "max": 1.0 },
+      "maxConf": { "min": 0.5, "max": 1.0 }
+    },
+    "exclusions": {
+      "fixed_antecedents": ["diabetes"],
+      "fixed_consequents": ["age"],
+      "forbidden_pairs": []
+    }
+  }
+}

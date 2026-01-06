@@ -1,0 +1,77 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+
+# Virtual environments
+.venv/
+venv/
+env/
+.conda/
+
+# VS Code / IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Project outputs
+results/
+temp/
+htmlcov/
+
+# Test configuration outputs
+config/test_quick/
+config/test_mutations/
+test/temp_*.json
+
+# Coverage and testing
+*.coverage
+.coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+coverage.xml
+.tox/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Data files (uncomment if needed)
+# data/processed/*.csv
+# data/raw/*.csv
+
+# ⚠️ CRITICAL: Estos archivos SON necesarios para reproducibilidad
+# NO excluir:
+# - data/processed/pregenerated/valid_rules_1m.csv  (pool de reglas)
+# - data/processed/diabetes_dataset/*.csv            (dataset procesado)
+# - data/processed/diabetes_dataset/*.json           (metadata, supports)
+
+# Temporary files
+*.tmp
+*.bak
+*~
+temp_config_*.json
+*.orig
+
+# Generated documentation
+docs/_build/
+site/

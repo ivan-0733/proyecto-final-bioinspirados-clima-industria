@@ -5,6 +5,9 @@
       "type": "ordinal",
       "cardinality": 5
     },
+    "drop_columns": [
+      "date"
+    ],
     "feature_order": [
       "country",
       "avg_temperature",
@@ -32,37 +35,42 @@
     "continuous_to_categorical": {
       "avg_temperature": {
         "type": "ordinal", "cardinality": 5,
-        "bins": [-999999999.0, 3.98, 10.53, 16.44, 22.62, 999999999.0],
+        "bins": [-999999999.0, 3.98, 10.53, 16.44, 22.62],
         "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
       },
       "humidity": {
         "type": "ordinal", "cardinality": 5,
-        "bins": [-999999999.0, 41.98, 54.01, 66.0, 78.02, 999999999.0],
+        "bins": [-999999999.0, 41.98, 54.01, 66.0, 78.02],
         "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
       },
       "co2_emission": {
         "type": "ordinal", "cardinality": 5,
-        "bins": [-999999999.0, 213.81, 354.08, 491.59, 675.60, 999999999.0],
+        "bins": [-999999999.0, 213.81, 354.08, 491.59, 675.60],
         "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
       },
       "energy_consumption": {
         "type": "ordinal", "cardinality": 5,
-        "bins": [-999999999.0, 3652.72, 5810.44, 7984.73, 10904.96, 999999999.0],
+        "bins": [-999999999.0, 3652.72, 5810.44, 7984.73, 10904.96],
         "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
       },
       "renewable_share": {
         "type": "ordinal", "cardinality": 5,
-        "bins": [-999999999.0, 11.09, 14.24, 17.23, 20.81, 999999999.0],
+        "bins": [-999999999.0, 11.09, 14.24, 17.23, 20.81],
+        "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
+      },
+      "urban_population": {
+        "type": "ordinal", "cardinality": 5,
+        "bins": [-999999999.0, 40.0, 60.0, 75.0, 85.0],
         "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
       },
       "industrial_activity_index": {
         "type": "ordinal", "cardinality": 5,
-        "bins": [-999999999.0, 52.22, 64.22, 76.09, 88.17, 999999999.0],
+        "bins": [-999999999.0, 52.22, 64.22, 76.09, 88.17],
         "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
       },
       "energy_price": {
         "type": "ordinal", "cardinality": 5,
-        "bins": [-999999999.0, 64.19, 98.20, 132.29, 166.65, 999999999.0],
+        "bins": [-999999999.0, 64.19, 98.20, 132.29, 166.65],
         "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
       }
     }

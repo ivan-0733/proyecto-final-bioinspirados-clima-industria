@@ -8,10 +8,10 @@
     },
     "dataset": {
       "name": "climate_energy",
-      "processed_path": "data/processed/climate_dataset/climate_processed.csv",
+      "processed_path": "data/processed/climate_dataset/climate_dataset_processed.csv",
       "raw_path": "data/raw/climate_dataset/global_climate_energy_2020_2024.csv",
       "supports_path": "data/processed/climate_dataset/supports.json",
-      "metadata_path": "data/raw/climate_dataset/climate_metadata.json"
+      "metadata_path": "data/processed/climate_dataset/metadata.json"
     },
     "use_sampling": false,
     "algorithm": {
@@ -81,7 +81,7 @@
       "rule_validity": {
         "min_antecedent_items": 1,
         "min_consequent_items": 1,
-        "max_antecedent_items": 4,
+        "max_antecedent_items": 2,
         "max_consequent_items": 3
       },
       "metric_thresholds": {},

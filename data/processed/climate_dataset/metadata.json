@@ -1,0 +1,306 @@
+{
+  "dataset_name": "Climate Energy 2020-2024",
+  "variables": {
+    "avg_temperature": {
+      "type": "ordinal",
+      "cardinality": 5,
+      "labels": [
+        "Very Low",
+        "Low",
+        "Medium",
+        "High",
+        "Very High"
+      ],
+      "transformation": {
+        "source_type": "continuous",
+        "method": "binning",
+        "bins": [
+          -999999999.0,
+          3.98,
+          10.53,
+          16.44,
+          22.62
+        ],
+        "right": true
+      },
+      "encoding": {
+        "Very Low": 0,
+        "Low": 1,
+        "Medium": 2,
+        "High": 3,
+        "Very High": 4
+      }
+    },
+    "humidity": {
+      "type": "ordinal",
+      "cardinality": 5,
+      "labels": [
+        "Very Low",
+        "Low",
+        "Medium",
+        "High",
+        "Very High"
+      ],
+      "transformation": {
+        "source_type": "continuous",
+        "method": "binning",
+        "bins": [
+          -999999999.0,
+          41.98,
+          54.01,
+          66.0,
+          78.02
+        ],
+        "right": true
+      },
+      "encoding": {
+        "Very Low": 0,
+        "Low": 1,
+        "Medium": 2,
+        "High": 3,
+        "Very High": 4
+      }
+    },
+    "co2_emission": {
+      "type": "ordinal",
+      "cardinality": 5,
+      "labels": [
+        "Very Low",
+        "Low",
+        "Medium",
+        "High",
+        "Very High"
+      ],
+      "transformation": {
+        "source_type": "continuous",
+        "method": "binning",
+        "bins": [
+          -999999999.0,
+          213.81,
+          354.08,
+          491.59,
+          675.6
+        ],
+        "right": true
+      },
+      "encoding": {
+        "Very Low": 0,
+        "Low": 1,
+        "Medium": 2,
+        "High": 3,
+        "Very High": 4
+      }
+    },
+    "energy_consumption": {
+      "type": "ordinal",
+      "cardinality": 5,
+      "labels": [
+        "Very Low",
+        "Low",
+        "Medium",
+        "High",
+        "Very High"
+      ],
+      "transformation": {
+        "source_type": "continuous",
+        "method": "binning",
+        "bins": [
+          -999999999.0,
+          3652.72,
+          5810.44,
+          7984.73,
+          10904.96
+        ],
+        "right": true
+      },
+      "encoding": {
+        "Very Low": 0,
+        "Low": 1,
+        "Medium": 2,
+        "High": 3,
+        "Very High": 4
+      }
+    },
+    "renewable_share": {
+      "type": "ordinal",
+      "cardinality": 5,
+      "labels": [
+        "Very Low",
+        "Low",
+        "Medium",
+        "High",
+        "Very High"
+      ],
+      "transformation": {
+        "source_type": "continuous",
+        "method": "binning",
+        "bins": [
+          -999999999.0,
+          11.09,
+          14.24,
+          17.23,
+          20.81
+        ],
+        "right": true
+      },
+      "encoding": {
+        "Very Low": 0,
+        "Low": 1,
+        "Medium": 2,
+        "High": 3,
+        "Very High": 4
+      }
+    },
+    "urban_population": {
+      "type": "ordinal",
+      "cardinality": 5,
+      "labels": [
+        "Very Low",
+        "Low",
+        "Medium",
+        "High",
+        "Very High"
+      ],
+      "transformation": {
+        "source_type": "continuous",
+        "method": "binning",
+        "bins": [
+          -999999999.0,
+          40.0,
+          60.0,
+          75.0,
+          85.0
+        ],
+        "right": true
+      },
+      "encoding": {
+        "Very Low": 0,
+        "Low": 1,
+        "Medium": 2,
+        "High": 3,
+        "Very High": 4
+      }
+    },
+    "industrial_activity_index": {
+      "type": "ordinal",
+      "cardinality": 5,
+      "labels": [
+        "Very Low",
+        "Low",
+        "Medium",
+        "High",
+        "Very High"
+      ],
+      "transformation": {
+        "source_type": "continuous",
+        "method": "binning",
+        "bins": [
+          -999999999.0,
+          52.22,
+          64.22,
+          76.09,
+          88.17
+        ],
+        "right": true
+      },
+      "encoding": {
+        "Very Low": 0,
+        "Low": 1,
+        "Medium": 2,
+        "High": 3,
+        "Very High": 4
+      }
+    },
+    "energy_price": {
+      "type": "ordinal",
+      "cardinality": 5,
+      "labels": [
+        "Very Low",
+        "Low",
+        "Medium",
+        "High",
+        "Very High"
+      ],
+      "transformation": {
+        "source_type": "continuous",
+        "method": "binning",
+        "bins": [
+          -999999999.0,
+          64.19,
+          98.2,
+          132.29,
+          166.65
+        ],
+        "right": true
+      },
+      "encoding": null,
+      "role": "target"
+    },
+    "country": {
+      "type": "nominal",
+      "cardinality": 20,
+      "encoding": {
+        "Australia": 0,
+        "Brazil": 1,
+        "Canada": 2,
+        "China": 3,
+        "France": 4,
+        "Germany": 5,
+        "India": 6,
+        "Indonesia": 7,
+        "Italy": 8,
+        "Japan": 9,
+        "Mexico": 10,
+        "Netherlands": 11,
+        "Norway": 12,
+        "Poland": 13,
+        "South Africa": 14,
+        "Spain": 15,
+        "Sweden": 16,
+        "Turkey": 17,
+        "United Kingdom": 18,
+        "United States": 19
+      },
+      "labels": [
+        "Australia",
+        "Brazil",
+        "Canada",
+        "China",
+        "France",
+        "Germany",
+        "India",
+        "Indonesia",
+        "Italy",
+        "Japan",
+        "Mexico",
+        "Netherlands",
+        "Norway",
+        "Poland",
+        "South Africa",
+        "Spain",
+        "Sweden",
+        "Turkey",
+        "United Kingdom",
+        "United States"
+      ]
+    }
+  },
+  "feature_order": [
+    "country",
+    "avg_temperature",
+    "humidity",
+    "co2_emission",
+    "energy_consumption",
+    "renewable_share",
+    "urban_population",
+    "industrial_activity_index",
+    "energy_price"
+  ],
+  "target_variable": "energy_price",
+  "preprocessing": {
+    "row_filters": [],
+    "drop_columns": [
+      "date"
+    ]
+  }
+}

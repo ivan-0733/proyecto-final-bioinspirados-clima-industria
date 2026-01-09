@@ -1,0 +1,98 @@
+=== Distribución del Dataset (Discretizado/Etiquetado) ===
+Total registros: 36540
+
+--- Distribución de: country ---
+                Count  Percentage
+country                          
+Germany          1827         5.0
+France           1827         5.0
+Mexico           1827         5.0
+South Africa     1827         5.0
+Australia        1827         5.0
+Japan            1827         5.0
+China            1827         5.0
+India            1827         5.0
+Brazil           1827         5.0
+Canada           1827         5.0
+United States    1827         5.0
+United Kingdom   1827         5.0
+Turkey           1827         5.0
+Poland           1827         5.0
+Norway           1827         5.0
+Sweden           1827         5.0
+Spain            1827         5.0
+Italy            1827         5.0
+Netherlands      1827         5.0
+Indonesia        1827         5.0
+
+--- Distribución de: avg_temperature ---
+                 Count  Percentage
+avg_temperature                   
+Very Low          7324   20.043788
+High              7312   20.010947
+Medium            7304   19.989053
+Very High         7301   19.980843
+Low               7299   19.975369
+
+--- Distribución de: humidity ---
+           Count  Percentage
+humidity                    
+High        7314   20.016420
+Very Low    7313   20.013684
+Low         7309   20.002737
+Medium      7303   19.986316
+Very High   7301   19.980843
+
+--- Distribución de: co2_emission ---
+              Count  Percentage
+co2_emission                   
+Very Low       7309   20.002737
+High           7308   20.000000
+Medium         7308   20.000000
+Very High      7308   20.000000
+Low            7307   19.997263
+
+--- Distribución de: energy_consumption ---
+                    Count  Percentage
+energy_consumption                   
+Medium               7309   20.002737
+Very High            7308   20.000000
+Low                  7308   20.000000
+Very Low             7308   20.000000
+High                 7307   19.997263
+
+--- Distribución de: renewable_share ---
+                 Count  Percentage
+renewable_share                   
+Very Low          7317   20.024631
+Medium            7310   20.005473
+High              7309   20.002737
+Low               7308   20.000000
+Very High         7296   19.967159
+
+--- Distribución de: urban_population ---
+                  Count  Percentage
+urban_population                   
+Medium            18233   49.898741
+High              12282   33.612479
+Very High          6021   16.477833
+Low                   4    0.010947
+
+--- Distribución de: industrial_activity_index ---
+                           Count  Percentage
+industrial_activity_index                   
+High                        7313   20.013684
+Very Low                    7312   20.010947
+Low                         7310   20.005473
+Medium                      7305   19.991790
+Very High                   7300   19.978106
+
+--- Distribución de: energy_price ---
+              Count  Percentage
+energy_price                   
+Very Low       7311   20.008210
+Medium         7309   20.002737
+High           7308   20.000000
+Low            7307   19.997263
+Very High      7305   19.991790
+

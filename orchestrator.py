@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import pandas as pd
+from pathlib import Path
 from src.MOEAD import MOEAD_ARM
 from src.callback import ARMCallback
 from src.representation import RuleIndividual
@@ -206,6 +207,22 @@ class Orchestrator:
             json.dump(self.config, f, indent=2)
         
         print(f"Initializing Algorithm (Output: {exp_dir})...")
+        
+        # === CARGAR DATASET RAW PARA CLIMATE SCENARIO ===
+        if self.config['experiment'].get('scenario') == 'climate_5_obj':
+            raw_path = self.config.get('dataset', {}).get('raw_path')
+            if raw_path and Path(raw_path).exists():
+                print(f"Loading RAW dataset from {raw_path}...")
+                raw_df = pd.read_csv(raw_path)
+                if 'date' in raw_df.columns:
+                    raw_df = raw_df.drop(columns=['date'])
+                self.data_context['raw_df'] = raw_df
+                print(f"RAW dataset loaded: {len(raw_df)} rows, {len(raw_df.columns)} columns")
+            else:
+                print(f"WARNING: raw_path not found: {raw_path}")
+                self.data_context['raw_df'] = None
+        else:
+            self.data_context['raw_df'] = None
         
         # Init Algorithm Wrapper
         moead_arm = MOEAD_ARM(self.config, self.data_context)

@@ -1,22 +1,21 @@
 """
-🌍 CLIMATE METRICS v3.0 - WORLD COMPETITION READY
+🌍 CLIMATE METRICS v4.0 - WORLD COMPETITION READY
 =================================================
 Métricas de Descubrimiento de Subgrupos para optimización clima-industria.
 
-CORRECCIONES CRÍTICAS v3.0:
-1. ✅ Normalización robusta con SPREAD REAL en [0, 1] para MOEA/D
-2. ✅ Hypervolume ahora AUMENTA correctamente
-3. ✅ Todos los valores son POSITIVOS (MOEA/D minimiza hacia 0)
-4. ✅ Quality Measure basado en WRAcc (Weighted Relative Accuracy)
-5. ✅ Sin valores negativos que confundan al hypervolume
+CORRECCIÓN CRÍTICA v4.0:
+- Usa valores CONTINUOS del dataset RAW para calcular estadísticas
+- Filtra por dataset DISCRETIZADO, evalúa con dataset RAW
+- Esto permite discriminar subgrupos realmente diferentes
 
 Autor: Sistema de Optimización Multiobjetivo
-Versión: 3.0 - World Competition Ready
+Versión: 4.0 - Fixed Continuous Values
 """
 
 from typing import List, Tuple, Dict, Any, Optional
 import numpy as np
 import pandas as pd
+from pathlib import Path
 from .base import BaseMetrics
 
 
@@ -24,28 +23,15 @@ class ClimateMetrics(BaseMetrics):
     """
     Métricas de Descubrimiento de Subgrupos para 5 objetivos climáticos.
     
-    ENFOQUE v3.0: Weighted Relative Accuracy (WRAcc)
-    ================================================
-    WRAcc = coverage * (local_proportion - global_proportion)
+    ENFOQUE v4.0: Evaluación sobre VALORES CONTINUOS
+    =================================================
+    - Filtrado: usa dataset discretizado (0-4) para seleccionar subgrupo
+    - Evaluación: usa dataset RAW (valores continuos) para calcular métricas
     
-    Para cada objetivo, calculamos qué tan "bueno" es el subgrupo vs global:
-    - coverage = n_subgroup / n_total (tamaño relativo del subgrupo)
-    - quality = diferencia normalizada respecto al global
-    
-    OBJETIVOS (todos se MINIMIZAN en MOEA/D):
-    - co2_emission: Queremos MENOR → valor bajo = buena regla → retornamos (1 - quality)
-    - energy_consumption: Queremos MENOR → valor bajo = buena regla → retornamos (1 - quality)
-    - renewable_share: Queremos MAYOR → valor alto = buena regla → retornamos (1 - quality)
-    - industrial_activity_index: Queremos MAYOR → valor alto = buena regla → retornamos (1 - quality)
-    - energy_price: Queremos MENOR → valor bajo = buena regla → retornamos (1 - quality)
-    
-    RANGO DE SALIDA: [0, 1] donde:
-    - 0 = regla ÓPTIMA (mejor posible)
-    - 1 = regla NEUTRAL o MALA
-    - 2 = regla INVÁLIDA (penalización)
+    Esto permite encontrar subgrupos donde los valores reales son significativamente
+    diferentes del promedio global.
     """
     
-    # Nombres canónicos de métricas
     METRIC_NAMES = [
         'co2_emission', 
         'energy_consumption', 
@@ -54,55 +40,92 @@ class ClimateMetrics(BaseMetrics):
         'energy_price'
     ]
     
-    # Direcciones de optimización REAL del dominio
-    # True = queremos MAXIMIZAR este valor (más = mejor)
-    # False = queremos MINIMIZAR este valor (menos = mejor)
     MAXIMIZE_METRICS = {
-        'co2_emission': False,           # MINIMIZAR - menos emisiones = mejor
-        'energy_consumption': False,     # MINIMIZAR - menos consumo = mejor  
-        'renewable_share': True,         # MAXIMIZAR - más renovables = mejor
-        'industrial_activity_index': True,  # MAXIMIZAR - más actividad = mejor
-        'energy_price': False            # MINIMIZAR - menor precio = mejor
+        'co2_emission': False,
+        'energy_consumption': False,
+        'renewable_share': True,
+        'industrial_activity_index': True,
+        'energy_price': False
     }
     
-    # Penalización para reglas inválidas (fuera del rango [0, 1])
     PENALTY_VALUE = 2.0
 
-    def __init__(self, dataframe: pd.DataFrame, supports_dict: dict, metadata: dict):
+    def __init__(
+        self, 
+        dataframe: pd.DataFrame, 
+        supports_dict: dict, 
+        metadata: dict,
+        raw_dataframe: Optional[pd.DataFrame] = None
+    ):
         """
         Inicializa ClimateMetrics.
         
         Args:
-            dataframe: DataFrame procesado (valores ordinales 0-4)
+            dataframe: DataFrame DISCRETIZADO (valores ordinales 0-4)
             supports_dict: Diccionario de soportes
             metadata: Metadata con feature_order y encodings
+            raw_dataframe: DataFrame RAW con valores continuos (CRÍTICO)
         """
         super().__init__(dataframe, supports_dict, metadata)
         
-        # Pre-calcular estadísticas globales (baseline)
-        self.global_stats = {}
-        self.max_indices = {}
+        # Guardar DataFrame discretizado para filtrado
+        self.df_discrete = self.df.copy()
         
+        # Cargar o usar DataFrame RAW para evaluación
+        if raw_dataframe is not None:
+            self.df_raw = raw_dataframe.copy()
+        else:
+            # Intentar cargar desde config si no se proporciona
+            self.df_raw = self._try_load_raw_dataframe(metadata)
+        
+        # Verificar que tenemos datos raw
+        if self.df_raw is None:
+            raise ValueError(
+                "ClimateMetrics v4.0 requiere el dataset RAW con valores continuos. "
+                "Proporcione raw_dataframe o configure raw_path en metadata."
+            )
+        
+        # Verificar alineación de filas
+        if len(self.df_discrete) != len(self.df_raw):
+            raise ValueError(
+                f"Mismatch en filas: discrete={len(self.df_discrete)}, raw={len(self.df_raw)}"
+            )
+        
+        # Pre-calcular estadísticas globales sobre valores CONTINUOS
+        self.global_stats = {}
         for col in self.METRIC_NAMES:
-            if col in self.df.columns:
-                values = self.df[col]
+            if col in self.df_raw.columns:
+                values = self.df_raw[col].astype(float)
                 self.global_stats[col] = {
                     'mean': float(values.mean()),
                     'std': max(float(values.std()), 1e-6),
                     'min': float(values.min()),
                     'max': float(values.max()),
-                    'range': float(values.max() - values.min()) if values.max() != values.min() else 1.0
+                    'range': float(values.max() - values.min()) if values.max() != values.min() else 1.0,
+                    'q25': float(values.quantile(0.25)),
+                    'q75': float(values.quantile(0.75)),
                 }
         
-        # Pre-calcular índices máximos por columna (safety)
-        for col in self.df.columns:
-            self.max_indices[col] = int(self.df[col].max())
+        # Índices máximos para dataset discretizado
+        self.max_indices = {}
+        for col in self.df_discrete.columns:
+            self.max_indices[col] = int(self.df_discrete[col].max())
         
-        # Obtener nombres de variables del metadata
-        self.var_names = metadata.get('feature_order', list(self.df.columns))
-        
-        # Cache
+        self.var_names = metadata.get('feature_order', list(self.df_discrete.columns))
         self._cache = {}
+        
+    def _try_load_raw_dataframe(self, metadata: dict) -> Optional[pd.DataFrame]:
+        """Intenta cargar el DataFrame raw desde la ruta en metadata."""
+        raw_path = metadata.get('raw_path')
+        if raw_path:
+            path = Path(raw_path)
+            if path.exists():
+                df = pd.read_csv(path)
+                # Eliminar columnas no numéricas excepto country
+                if 'date' in df.columns:
+                    df = df.drop(columns=['date'])
+                return df
+        return None
 
     def _calculate_all_metrics(
         self,
@@ -110,37 +133,31 @@ class ClimateMetrics(BaseMetrics):
         consequent: List[Tuple[int, int]]
     ) -> dict:
         """
-        Calcula todas las métricas para una regla.
+        Calcula métricas usando valores CONTINUOS del dataset RAW.
         
-        ENFOQUE v3.0: Quality Score normalizado a [0, 1]
-        
-        Args:
-            antecedent: Lista de (var_idx, val_idx) para antecedente
-            consequent: Lista de (var_idx, val_idx) para consecuente
-            
-        Returns:
-            Dict con valor de cada métrica en [0, 1], donde MENOR = MEJOR
+        Proceso:
+        1. Filtrar dataset DISCRETIZADO por la regla
+        2. Obtener índices de filas que cumplen la regla
+        3. Evaluar métricas sobre valores CONTINUOS de esas filas
         """
         full_rule_items = antecedent + consequent
         
-        # Regla vacía = penalización máxima
         if not full_rule_items:
             return {m: self.PENALTY_VALUE for m in self.METRIC_NAMES}
 
-        # === FILTRADO ROBUSTO ===
-        mask = np.ones(len(self.df), dtype=bool)
+        # === PASO 1: FILTRAR POR DATASET DISCRETIZADO ===
+        mask = np.ones(len(self.df_discrete), dtype=bool)
         
         for var_idx, val_idx in full_rule_items:
-            # Validar índice de variable
             if var_idx >= len(self.var_names):
                 continue
             
             col_name = self.var_names[var_idx]
             
-            if col_name not in self.df.columns:
+            if col_name not in self.df_discrete.columns:
                 continue
             
-            # Auto-corrección de índices fuera de rango
+            # Validar índice de valor
             safe_val = val_idx
             max_val = self.max_indices.get(col_name, 4)
             if safe_val > max_val:
@@ -148,78 +165,67 @@ class ClimateMetrics(BaseMetrics):
             if safe_val < 0:
                 safe_val = 0
             
-            mask &= (self.df[col_name] == safe_val)
+            mask &= (self.df_discrete[col_name] == safe_val)
         
-        matched_rows = self.df[mask]
-        n_matched = len(matched_rows)
-        n_total = len(self.df)
+        n_matched = mask.sum()
+        n_total = len(self.df_discrete)
         
-        # Sin matches = penalización severa
         if n_matched == 0:
             return {m: self.PENALTY_VALUE for m in self.METRIC_NAMES}
         
-        # === CÁLCULO DE QUALITY SCORE ===
-        # Coverage: proporción del dataset que cubre la regla
-        coverage = n_matched / n_total
+        if n_matched < 10:  # Mínimo de soporte
+            return {m: self.PENALTY_VALUE for m in self.METRIC_NAMES}
+
+        # === PASO 2: OBTENER VALORES CONTINUOS DEL SUBGRUPO ===
+        matched_raw = self.df_raw[mask]
         
-        # Factor de coverage: sqrt para balancear reglas específicas vs generales
-        # Reglas muy específicas (bajo coverage) tienen menos peso
-        coverage_factor = np.sqrt(coverage)
+        # === PASO 3: CALCULAR MÉTRICAS SOBRE VALORES CONTINUOS ===
+        coverage = n_matched / n_total
+        coverage_factor = np.sqrt(coverage)  # Penalizar reglas muy específicas
         
         results = {}
         
         for col in self.METRIC_NAMES:
-            if col not in matched_rows.columns or col not in self.global_stats:
+            if col not in matched_raw.columns or col not in self.global_stats:
                 results[col] = self.PENALTY_VALUE
                 continue
             
-            # Estadísticas del subgrupo
-            local_mean = matched_rows[col].mean()
+            # Estadísticas del subgrupo (VALORES CONTINUOS)
+            local_values = matched_raw[col].astype(float)
+            local_mean = float(local_values.mean())
             
-            # Estadísticas globales
+            # Estadísticas globales (VALORES CONTINUOS)
             global_mean = self.global_stats[col]['mean']
             global_range = self.global_stats[col]['range']
-            global_min = self.global_stats[col]['min']
-            global_max = self.global_stats[col]['max']
+            global_std = self.global_stats[col]['std']
             
-            # === QUALITY SCORE NORMALIZADO ===
-            # Diferencia normalizada: qué tan diferente es el subgrupo del global
-            # Rango: [-1, 1] antes de ajustar dirección
-            if global_range > 0:
-                normalized_diff = (local_mean - global_mean) / global_range
+            # === QUALITY SCORE: Z-Score normalizado ===
+            # Mide cuántas desviaciones estándar está el subgrupo del global
+            if global_std > 0:
+                z_score = (local_mean - global_mean) / global_std
             else:
-                normalized_diff = 0.0
+                z_score = 0.0
+            
+            # Normalizar z-score a [-1, 1] (clip en ±3 std)
+            normalized_diff = np.clip(z_score / 3.0, -1.0, 1.0)
             
             # Ajustar según dirección de optimización
             if self.MAXIMIZE_METRICS[col]:
-                # MAXIMIZAR: queremos local > global
-                # normalized_diff positivo = bueno
+                # MAXIMIZAR: z_score positivo = bueno
                 improvement = normalized_diff
             else:
-                # MINIMIZAR: queremos local < global
-                # normalized_diff negativo = bueno (invertimos signo)
+                # MINIMIZAR: z_score negativo = bueno
                 improvement = -normalized_diff
             
-            # Quality combinada con coverage
-            # Rango aproximado: [-1, 1]
+            # Combinar con coverage
             raw_quality = coverage_factor * improvement
             
-            # === TRANSFORMACIÓN A [0, 1] para MOEA/D ===
-            # raw_quality en [-1, 1] aproximadamente
-            # Queremos: mejor calidad → menor valor (MOEA/D minimiza)
-            # 
-            # Transformación: fitness = (1 - raw_quality) / 2
-            # - raw_quality = 1 (óptimo) → fitness = 0
-            # - raw_quality = 0 (neutral) → fitness = 0.5
-            # - raw_quality = -1 (malo) → fitness = 1
-            
-            # Clip para seguridad
+            # Transformar a [0, 1] para MOEA/D (minimización)
+            # raw_quality = 1 → fitness = 0 (óptimo)
+            # raw_quality = 0 → fitness = 0.5 (neutral)
+            # raw_quality = -1 → fitness = 1 (malo)
             clipped_quality = np.clip(raw_quality, -1.0, 1.0)
-            
-            # Transformar a [0, 1]
             fitness = (1.0 - clipped_quality) / 2.0
-            
-            # Asegurar rango [0, 1]
             fitness = np.clip(fitness, 0.0, 1.0)
             
             results[col] = float(fitness)
@@ -232,20 +238,7 @@ class ClimateMetrics(BaseMetrics):
         consequent: List[Tuple[int, int]],
         objectives: List[str]
     ) -> Tuple[List[Optional[float]], Dict[str, str]]:
-        """
-        Calcula métricas seleccionadas para una regla.
-        
-        Compatible con interfaz BaseMetrics para integración con ARMProblem/Validator.
-        
-        Args:
-            antecedent: Lista de (var_idx, val_idx)
-            consequent: Lista de (var_idx, val_idx)
-            objectives: Lista de nombres de métricas a calcular
-            
-        Returns:
-            Tuple de (valores, errores)
-        """
-        # Check cache first
+        """Calcula métricas seleccionadas para una regla."""
         cache_key = (frozenset(antecedent), frozenset(consequent))
         
         if cache_key in self._cache:
@@ -289,12 +282,7 @@ class ClimateMetrics(BaseMetrics):
         return aliases.get(metric_name, metric_name)
 
     def get_metric_info(self, metric_name: str) -> Dict[str, Any]:
-        """
-        Retorna información sobre una métrica.
-        
-        Returns:
-            Dict con direction, range, description
-        """
+        """Retorna información sobre una métrica."""
         canonical = self.get_canonical_name(metric_name)
         
         descriptions = {
@@ -308,7 +296,7 @@ class ClimateMetrics(BaseMetrics):
         return {
             'name': canonical,
             'direction': 'maximize' if self.MAXIMIZE_METRICS.get(canonical, False) else 'minimize',
-            'range': [0.0, 1.0],  # Rango normalizado para MOEA/D
+            'range': [0.0, 1.0],
             'description': descriptions.get(canonical, 'No description'),
             'global_stats': self.global_stats.get(canonical, {})
         }
@@ -318,7 +306,5 @@ class ClimateMetrics(BaseMetrics):
         self._cache.clear()
 
 
-# Clase wrapper para compatibilidad
-class ClimateMetricsV2(ClimateMetrics):
-    """Alias para compatibilidad con versiones anteriores."""
-    pass
+# Alias para compatibilidad
+ClimateMetricsV2 = ClimateMetrics

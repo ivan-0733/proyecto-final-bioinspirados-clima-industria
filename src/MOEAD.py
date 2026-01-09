@@ -527,11 +527,16 @@ class MOEAD_ARM:
         scenario = self.config['experiment'].get('scenario', 'scenario_1')
         
         # Initialize Components with MetricsFactory
+        # Obtener raw_df si existe (para ClimateMetrics v4.0)
+        raw_df = self.data.get('raw_df', None)
+        
         self.metrics = MetricsFactory.create_metrics(
             scenario_name=scenario,
             dataframe=self.data['df'],
             supports_dict=self.data['supports'],
-            metadata=self.data['metadata']
+            metadata=self.data['metadata'],
+            raw_dataframe=raw_df,
+            config=self.config
         )
         
         self.validator = ARMValidator(

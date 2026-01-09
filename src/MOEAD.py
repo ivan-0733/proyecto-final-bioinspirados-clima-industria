@@ -549,7 +549,7 @@ class MOEAD_ARM:
             config=self.config,
             validator=self.validator,
             metrics=self.metrics,
-            logger=self.logger
+            logger_instance=self.logger
         )
         
     def run(self, callback=None):

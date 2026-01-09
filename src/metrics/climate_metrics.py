@@ -197,37 +197,45 @@ class ClimateMetrics(BaseMetrics):
         self,
         antecedent: List[Tuple[int, int]],
         consequent: List[Tuple[int, int]],
-        selected_metrics: Optional[List[str]] = None
-    ) -> Tuple[List[float], Dict[str, str]]:
+        objectives: List[str]
+    ) -> Tuple[List[Optional[float]], Dict[str, str]]:
         """
         Calcula métricas seleccionadas para una regla.
+        
+        Compatible con interfaz BaseMetrics para integración con ARMProblem/Validator.
         
         Args:
             antecedent: Lista de (var_idx, val_idx)
             consequent: Lista de (var_idx, val_idx)
-            selected_metrics: Lista de nombres de métricas a calcular
+            objectives: Lista de nombres de métricas a calcular
             
         Returns:
             Tuple de (valores, errores)
         """
-        if selected_metrics is None:
-            selected_metrics = self.METRIC_NAMES
+        # Check cache first
+        cache_key = (frozenset(antecedent), frozenset(consequent))
         
-        all_metrics = self._calculate_all_metrics(antecedent, consequent)
+        if cache_key in self._cache:
+            all_metrics = self._cache[cache_key]
+        else:
+            all_metrics = self._calculate_all_metrics(antecedent, consequent)
+            self._cache[cache_key] = all_metrics
         
         values = []
         errors = {}
         
-        for metric in selected_metrics:
-            if metric in all_metrics:
-                val = all_metrics[metric]
-                if np.isnan(val) or np.isinf(val):
-                    values.append(self.PENALTY_VALUE)
+        for metric in objectives:
+            canonical = self.get_canonical_name(metric)
+            
+            if canonical in all_metrics:
+                val = all_metrics[canonical]
+                if val is None or (isinstance(val, float) and (np.isnan(val) or np.isinf(val))):
+                    values.append(None)
                     errors[metric] = "NaN/Inf value"
                 else:
                     values.append(val)
             else:
-                values.append(self.PENALTY_VALUE)
+                values.append(None)
                 errors[metric] = f"Unknown metric: {metric}"
         
         return values, errors

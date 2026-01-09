@@ -1,17 +1,3 @@
-"""
-🌍 CLIMATE METRICS v4.0 - WORLD COMPETITION READY
-=================================================
-Métricas de Descubrimiento de Subgrupos para optimización clima-industria.
-
-CORRECCIÓN CRÍTICA v4.0:
-- Usa valores CONTINUOS del dataset RAW para calcular estadísticas
-- Filtra por dataset DISCRETIZADO, evalúa con dataset RAW
-- Esto permite discriminar subgrupos realmente diferentes
-
-Autor: Sistema de Optimización Multiobjetivo
-Versión: 4.0 - Fixed Continuous Values
-"""
-
 from typing import List, Tuple, Dict, Any, Optional
 import numpy as np
 import pandas as pd
@@ -23,7 +9,7 @@ class ClimateMetrics(BaseMetrics):
     """
     Métricas de Descubrimiento de Subgrupos para 5 objetivos climáticos.
     
-    ENFOQUE v4.0: Evaluación sobre VALORES CONTINUOS
+    ENFOQUE: Evaluación sobre VALORES CONTINUOS
     =================================================
     - Filtrado: usa dataset discretizado (0-4) para seleccionar subgrupo
     - Evaluación: usa dataset RAW (valores continuos) para calcular métricas

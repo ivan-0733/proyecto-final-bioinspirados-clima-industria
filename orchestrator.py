@@ -216,8 +216,17 @@ class Orchestrator:
         hv_value = 0.0
         try:
             # Reference point at 0 (since we minimize negative values [-1, 0])
-            hv_indicator = HV(ref_point=np.zeros(len(objectives)))
-            hv_value = hv_indicator(pop.get("F"))
+            n_obj = len(objectives)
+            ref_point = np.ones(n_obj) * 1.1  # Nadir point
+            hv_indicator = HV(ref_point=ref_point)
+
+            # Filtrar soluciones inválidas
+            F = pop.get("F")
+            valid_mask = np.all(F < 1.5, axis=1)
+            if np.sum(valid_mask) > 0:
+                hv_value = hv_indicator(F[valid_mask])
+            else:
+                hv_value = 0.0
         except Exception as e:
             print(f"Warning: Final HV calculation failed: {e}")
 

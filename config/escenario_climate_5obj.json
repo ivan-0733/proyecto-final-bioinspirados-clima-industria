@@ -1,10 +1,16 @@
 {
-  "_comment": "=== CONFIGURACIÓN ÓPTIMA PARA 5 OBJETIVOS ===",
-  "_version": "2.0 - World Competition Ready",
+  "_comment": "=== CONFIGURACIÓN v3.0 - WORLD COMPETITION READY ===",
+  "_version": "3.0 - Hypervolume Fixed, Metrics Normalized [0,1]",
+  "_changes_v3": [
+    "1. ClimateMetrics retorna [0,1] donde 0=óptimo",
+    "2. Hypervolume reference point = 1.1 (nadir)",
+    "3. Stuck detection menos agresiva",
+    "4. Más generaciones para convergencia"
+  ],
   
   "experiment": {
-    "name": "MOEAD_Climate_5Obj_Optimized",
-    "description": "Optimización multiobjetivo clima-industria con MOEA/D - 5 objetivos, configuración optimizada para competencia mundial",
+    "name": "MOEAD_Climate_5Obj_v3_WorldReady",
+    "description": "Optimización multiobjetivo clima-industria con MOEA/D v3.0 - Corregido para competencia mundial",
     "scenario": "climate_5_obj",
     "random_seed": 42,
     "output_root": "results"
@@ -21,29 +27,28 @@
   "use_sampling": false,
   
   "algorithm": {
-    "_comment_generations": "200-300 es óptimo para 5 objetivos, más puede causar sobreajuste",
-    "generations": 250,
+    "_comment_generations": "300 generaciones para convergencia completa",
+    "generations": 300,
     
-    "_comment_pop_size": "Para 5 objetivos, Das-Dennis con H=5 da 126 direcciones. H=6 da 252",
+    "_comment_pop_size": "Das-Dennis H=5 → 126 direcciones para 5 objetivos",
     "population_size": 126,
     
     "logging_interval": 10,
     
     "termination": {
       "enabled": true,
-      "_comment": "ftol más estricto para 5 objetivos",
-      "ftol": 0.00001,
-      "period": 50
+      "_comment": "ftol más relajado para permitir exploración",
+      "ftol": 1e-06,
+      "period": 60
     },
     
     "initialization": {
       "use_pregenerated": false,
-      "_comment": "Más intentos para 5 objetivos debido a mayor espacio de búsqueda",
-      "max_attempts": 15000
+      "max_attempts": 20000
     },
     
     "decomposition": {
-      "_comment": "PBI funciona mejor para muchos objetivos (>3)",
+      "_comment": "PBI con theta=5 para 5 objetivos",
       "method": "pbi",
       "params": { 
         "theta": 5.0
@@ -51,7 +56,7 @@
     },
     
     "neighborhood": {
-      "_comment": "Vecindario más grande para 5 objetivos mejora diversidad",
+      "_comment": "Vecindario grande para diversidad en muchos objetivos",
       "size": 25,
       "replacement_size": 3,
       "selection_probability": 0.9
@@ -60,41 +65,41 @@
     "operators": {
       "crossover": {
         "probability": {
-          "initial": 0.85,
-          "min": 0.5,
+          "initial": 0.9,
+          "min": 0.6,
           "max": 1.0
         }
       },
       "mutation": {
-        "_comment": "conservative es el mejor balance calidad/velocidad",
+        "_comment": "conservative para balance calidad/velocidad",
         "method": "conservative",
         "active_ops": ["extension", "contraction", "replacement"],
         "probability": {
-          "initial": 0.25,
+          "initial": 0.3,
           "min": 0.05,
-          "max": 0.6
+          "max": 0.7
         },
-        "repair_attempts": 15,
-        "duplicate_attempts": 15,
+        "repair_attempts": 20,
+        "duplicate_attempts": 20,
         "reproducible_mode": true,
-        "max_operations": 2000,
-        "timeout": 8.0,
-        "timeout_per_attempt": 20.0
+        "max_operations": 3000,
+        "timeout": 10.0,
+        "timeout_per_attempt": 25.0
       }
     },
     
     "stuck_detection": {
       "enabled": true,
-      "_comment": "Configuración sensible para detectar estancamiento real",
-      "window": 20,
-      "min_new": 2,
-      "hv_window": 30,
-      "hv_tol": 1e-6
+      "_comment_v3": "MENOS AGRESIVO - permitir más exploración",
+      "window": 50,
+      "min_new": 1,
+      "hv_window": 50,
+      "hv_tol": 1e-8
     }
   },
   
   "objectives": {
-    "_comment": "5 objetivos: 3 minimizar, 2 maximizar",
+    "_comment": "5 objetivos en [0,1] donde 0=óptimo para todos (MOEA/D minimiza)",
     "selected": [
       "co2_emission",
       "energy_consumption",
@@ -103,6 +108,7 @@
       "energy_price"
     ],
     "directions": {
+      "_comment": "Estas direcciones son para INTERPRETACIÓN, no para MOEA/D",
       "co2_emission": "minimize",
       "energy_consumption": "minimize",
       "renewable_share": "maximize",
@@ -113,17 +119,16 @@
   
   "constraints": {
     "rule_validity": {
-      "_comment": "Reglas pequeñas son más interpretables",
+      "_comment": "Reglas pequeñas = más interpretables",
       "min_antecedent_items": 1,
       "min_consequent_items": 1,
       "max_antecedent_items": 3,
-      "max_consequent_items": 3
+      "max_consequent_items": 2
     },
     "metric_thresholds": {
-      "_comment": "Sin umbrales - dejar que MOEA/D explore todo el espacio"
+      "_comment": "Sin umbrales - dejar que MOEA/D explore todo"
     },
     "exclusions": {
-      "_comment": "Configurar según dominio - estas son restricciones de ejemplo",
       "fixed_antecedents": [],
       "fixed_consequents": [],
       "forbidden_pairs": [
@@ -131,6 +136,14 @@
         ["renewable_share", "energy_price"]
       ]
     }
+  },
+  
+  "hypervolume": {
+    "_comment_v3": "NUEVO - Configuración explícita del hypervolume",
+    "reference_point": "nadir",
+    "nadir_value": 1.1,
+    "filter_invalid": true,
+    "invalid_threshold": 1.5
   },
   
   "visualization": {

@@ -69,7 +69,7 @@ class ARMValidator:
         # We calculate ALL selected objectives here because we need to check thresholds
         # and also check for indeterminacy errors returned by the metrics engine.
         # Normalize metric names from config (thresholds may use aliases)
-        objectives_to_check = [self.alias_map.get(k, k) for k in self.thresholds.keys()]
+        objectives_to_check = [self.alias_map.get(k, k) for k in self.thresholds.keys() if not k.startswith('_')]
         
         # Also include objectives needed for optimization even if they don't have thresholds
         # (Though usually we filter by what we optimize)

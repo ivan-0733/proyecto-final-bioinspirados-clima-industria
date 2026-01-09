@@ -8,6 +8,9 @@ from pymoo.indicators.hv import HV
 from src.representation import RuleIndividual
 from src.MOEAD import StuckRunDetected
 
+from src.metrics.scenario1 import Scenario1Metrics
+from src.metrics.scenario2 import Scenario2Metrics
+
 class ARMCallback(Callback):
     def __init__(self, config, logger, output_dir):
         super().__init__()
@@ -41,14 +44,119 @@ class ARMCallback(Callback):
         self.stats_history = []
         
         # Hypervolume Indicator
-        # We assume objectives are normalized [0,1] and we minimize negative values [-1, 0]
-        # Reference point for minimization of [-1, 0] range is usually 0 (nadir) or slightly positive.
-        # Since we want to measure volume from the front up to 0, ref_point=[0,0,0] works.
-        self.hv_indicator = HV(ref_point=np.zeros(len(self.objectives)))
+        # ClimateMetrics retorna valores en [0, 1] donde 0 = óptimo (MINIMIZACIÓN)
+        # El ref_point debe ser MAYOR que todos los puntos posibles (nadir point)
+        # Usamos 1.1 para dar margen al rango [0, 1]
+        self.hv_indicator = HV(ref_point=np.ones(len(self.objectives)) * 1.1)
         
         # Track cumulative discarded count
         self.cumulative_discarded = 0
         self.log = logging.getLogger(__name__)
+
+    def _calculate_arm_metrics(self, antecedent, consequent, problem):
+        """
+        Calcula métricas ARM adicionales (informativas, no objetivos).
+        
+        Returns:
+            dict con métricas: casual_support, casual_confidence, max_conf,
+                              jaccard, cosine, phi, kappa
+        """
+        arm_metrics = {}
+        
+        try:
+            # Obtener probabilidades básicas usando el DataFrame del problema
+            df = problem.metrics.df
+            var_names = problem.metrics.var_names
+            supports = problem.metrics.supports
+            total_rows = len(df)
+            
+            # Helper para calcular P(items)
+            def get_prob(items):
+                if not items:
+                    return 0.0
+                if len(items) == 1:
+                    var_idx, val_idx = items[0]
+                    if var_idx < len(var_names):
+                        var_name = var_names[var_idx]
+                        try:
+                            return supports['variables'][var_name][str(val_idx)]
+                        except KeyError:
+                            return 0.0
+                    return 0.0
+                # Multiple items
+                import numpy as np
+                mask = np.ones(total_rows, dtype=bool)
+                for var_idx, val_idx in items:
+                    if var_idx < len(var_names):
+                        var_name = var_names[var_idx]
+                        if var_name in df.columns:
+                            mask &= (df[var_name] == val_idx)
+                return mask.sum() / total_rows
+            
+            # Probabilidades básicas
+            p_a = get_prob(antecedent)
+            p_c = get_prob(consequent)
+            p_ac = get_prob(antecedent + consequent)
+            
+            p_not_a = 1.0 - p_a
+            p_not_c = 1.0 - p_c
+            p_not_a_not_c = max(0.0, min(1.0, 1.0 - (p_a + p_c - p_ac)))
+            
+            # === SCENARIO 1: Casual ARM ===
+            # casual_support: P(A ∩ C) + P(¬A ∩ ¬C)
+            arm_metrics['casual_support'] = p_ac + p_not_a_not_c
+            
+            # casual_confidence: 0.5 * [P(C|A) + P(¬C|¬A)]
+            if p_a > 0 and p_not_a > 0:
+                conf_a_c = p_ac / p_a
+                conf_not_a_not_c = p_not_a_not_c / p_not_a
+                arm_metrics['casual_confidence'] = 0.5 * (conf_a_c + conf_not_a_not_c)
+            else:
+                arm_metrics['casual_confidence'] = None
+            
+            # max_conf: max(P(C|A), P(A|C))
+            if p_a > 0 and p_c > 0:
+                arm_metrics['max_conf'] = max(p_ac / p_a, p_ac / p_c)
+            else:
+                arm_metrics['max_conf'] = None
+            
+            # === SCENARIO 2: Correlation ===
+            # jaccard: P(A ∩ C) / P(A ∪ C)
+            p_union = p_a + p_c - p_ac
+            if p_union > 0:
+                arm_metrics['jaccard'] = p_ac / p_union
+            else:
+                arm_metrics['jaccard'] = None
+            
+            # cosine: P(A ∩ C) / sqrt(P(A) * P(C))
+            import numpy as np
+            if p_a > 0 and p_c > 0:
+                arm_metrics['cosine'] = p_ac / np.sqrt(p_a * p_c)
+            else:
+                arm_metrics['cosine'] = None
+            
+            # phi: (P(AC) - P(A)P(C)) / sqrt(P(A)P(A')P(C)P(C'))
+            denom_phi = np.sqrt(p_a * p_not_a * p_c * p_not_c)
+            if denom_phi > 0:
+                arm_metrics['phi'] = (p_ac - p_a * p_c) / denom_phi
+            else:
+                arm_metrics['phi'] = None
+            
+            # kappa: (P(AC) - P(A)P(C)) / max(P(A)(1-P(C)), P(C)(1-P(A)))
+            denom_kappa = max(p_a * (1 - p_c), p_c * (1 - p_a))
+            if denom_kappa > 0:
+                arm_metrics['kappa'] = (p_ac - p_a * p_c) / denom_kappa
+            else:
+                arm_metrics['kappa'] = None
+                
+        except Exception as e:
+            # Si falla, retornar None para todas las métricas
+            arm_metrics = {
+                'casual_support': None, 'casual_confidence': None, 'max_conf': None,
+                'jaccard': None, 'cosine': None, 'phi': None, 'kappa': None
+            }
+        
+        return arm_metrics
 
     def notify(self, algorithm):
         # Only run every 'interval' generations or at the last one
@@ -61,8 +169,16 @@ class ARMCallback(Callback):
         pop = algorithm.pop
         
         # 1. Calculate Statistics (on REAL values)
-        # pop.F contains negated values (minimization). We negate back to get real [0,1] values.
-        real_F = -pop.get("F")
+        # Para Climate scenario: ClimateMetrics ya retorna [0, 1] donde 0=óptimo
+        # Para otros scenarios: valores fueron negados, hay que revertir
+        # Detectamos por el rango de valores
+        raw_F = pop.get("F")
+        if np.all(raw_F >= 0):
+            # Climate scenario: valores ya están en [0, 1], no negar
+            real_F = raw_F.copy()
+        else:
+            # Otros scenarios: valores negativos, negar para obtener positivos
+            real_F = -raw_F
         
         stats = {'generation': gen}
         
@@ -155,10 +271,15 @@ class ARMCallback(Callback):
     def _save_population(self, pop, gen, type_name, algorithm, hv_value=None):
         """
         Saves a population to CSV.
-        Decodes individuals and includes metrics.
+        Decodes individuals and includes metrics + ARM metrics adicionales.
         """
         data = []
-        real_F = -pop.get("F") # Convert back to real values
+        raw_F = pop.get("F")
+        # Detectar si es Climate scenario (valores positivos) o tradicional (negativos)
+        if np.all(raw_F >= 0):
+            real_F = raw_F.copy()
+        else:
+            real_F = -raw_F
         X = pop.get("X")
         
         # Accessing metadata from problem
@@ -170,20 +291,25 @@ class ARMCallback(Callback):
             if hv_value is not None:
                 row['hypervolume'] = hv_value
             
-            # Metrics
+            # Metrics (objetivos optimizados)
             for j, obj_name in enumerate(self.objectives):
                 row[obj_name] = real_F[i, j]
                 
             # Decode Rule
-            # We need to create a temporary Individual to decode
-            # This is slow but necessary for human-readable logs
             if problem:
                 temp_ind = RuleIndividual(problem.metadata)
                 temp_ind.X = X[i]
                 ant_str, con_str = temp_ind.decode_parts()
+                ant_items, con_items = temp_ind.get_rule_items()
+                
                 row['antecedent'] = ant_str
                 row['consequent'] = con_str
                 row['rule'] = f"{ant_str} => {con_str}"
+                
+                # === MÉTRICAS ARM ADICIONALES (informativas) ===
+                arm_metrics = self._calculate_arm_metrics(ant_items, con_items, problem)
+                for metric_name, metric_val in arm_metrics.items():
+                    row[f'arm_{metric_name}'] = metric_val
                 
                 # Save raw genes
                 row['encoded_rule'] = json.dumps(X[i].tolist())

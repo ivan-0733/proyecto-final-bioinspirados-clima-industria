@@ -91,6 +91,71 @@ class Orchestrator:
             'metadata': metadata,
             'supports': supports
         }
+    
+    def _calculate_arm_metrics(self, antecedent, consequent, problem):
+        """
+        Calcula métricas ARM adicionales (informativas, no objetivos).
+        """
+        arm_metrics = {}
+        
+        try:
+            df = problem.metrics.df
+            var_names = problem.metrics.var_names
+            supports = problem.metrics.supports
+            total_rows = len(df)
+            
+            def get_prob(items):
+                if not items:
+                    return 0.0
+                if len(items) == 1:
+                    var_idx, val_idx = items[0]
+                    if var_idx < len(var_names):
+                        var_name = var_names[var_idx]
+                        try:
+                            return supports['variables'][var_name][str(val_idx)]
+                        except KeyError:
+                            return 0.0
+                    return 0.0
+                mask = np.ones(total_rows, dtype=bool)
+                for var_idx, val_idx in items:
+                    if var_idx < len(var_names):
+                        var_name = var_names[var_idx]
+                        if var_name in df.columns:
+                            mask &= (df[var_name] == val_idx)
+                return mask.sum() / total_rows
+            
+            p_a = get_prob(antecedent)
+            p_c = get_prob(consequent)
+            p_ac = get_prob(antecedent + consequent)
+            p_not_a = 1.0 - p_a
+            p_not_c = 1.0 - p_c
+            p_not_a_not_c = max(0.0, min(1.0, 1.0 - (p_a + p_c - p_ac)))
+            
+            # Scenario 1
+            arm_metrics['casual_support'] = p_ac + p_not_a_not_c
+            if p_a > 0 and p_not_a > 0:
+                arm_metrics['casual_confidence'] = 0.5 * ((p_ac / p_a) + (p_not_a_not_c / p_not_a))
+            else:
+                arm_metrics['casual_confidence'] = None
+            if p_a > 0 and p_c > 0:
+                arm_metrics['max_conf'] = max(p_ac / p_a, p_ac / p_c)
+            else:
+                arm_metrics['max_conf'] = None
+            
+            # Scenario 2
+            p_union = p_a + p_c - p_ac
+            arm_metrics['jaccard'] = p_ac / p_union if p_union > 0 else None
+            arm_metrics['cosine'] = p_ac / np.sqrt(p_a * p_c) if p_a > 0 and p_c > 0 else None
+            denom_phi = np.sqrt(p_a * p_not_a * p_c * p_not_c)
+            arm_metrics['phi'] = (p_ac - p_a * p_c) / denom_phi if denom_phi > 0 else None
+            denom_kappa = max(p_a * (1 - p_c), p_c * (1 - p_a))
+            arm_metrics['kappa'] = (p_ac - p_a * p_c) / denom_kappa if denom_kappa > 0 else None
+                
+        except Exception:
+            arm_metrics = {k: None for k in ['casual_support', 'casual_confidence', 'max_conf', 
+                                              'jaccard', 'cosine', 'phi', 'kappa']}
+        
+        return arm_metrics
 
     def run(self):
         # [SEED] CRÍTICO: Setear seed de NumPy ANTES de cualquier operación
@@ -205,17 +270,21 @@ class Orchestrator:
 
     def _save_population(self, pop, problem, filename):
         """
-        Saves a population to CSV with detailed rule parts.
+        Saves a population to CSV with detailed rule parts + ARM metrics adicionales.
         """
         data = []
-        real_F = -pop.get("F") # Convert back to real values
+        raw_F = pop.get("F")
+        # Detectar si es Climate scenario (valores positivos) o tradicional (negativos)
+        if np.all(raw_F >= 0):
+            real_F = raw_F.copy()
+        else:
+            real_F = -raw_F
         X = pop.get("X")
         objectives = self.config['objectives']['selected']
         
         # Calculate Hypervolume for the set
         hv_value = 0.0
         try:
-            # Reference point at 0 (since we minimize negative values [-1, 0])
             n_obj = len(objectives)
             ref_point = np.ones(n_obj) * 1.1  # Nadir point
             hv_indicator = HV(ref_point=ref_point)
@@ -236,7 +305,7 @@ class Orchestrator:
             # Hypervolume (repeated for all rows as it's a set metric)
             row['hypervolume'] = hv_value
 
-            # Metrics
+            # Metrics (objetivos optimizados)
             for j, obj_name in enumerate(objectives):
                 row[obj_name] = real_F[i, j]
                 
@@ -244,9 +313,16 @@ class Orchestrator:
             temp_ind = RuleIndividual(problem.metadata)
             temp_ind.X = X[i]
             ant_str, con_str = temp_ind.decode_parts()
+            ant_items, con_items = temp_ind.get_rule_items()
+            
             row['antecedent'] = ant_str
             row['consequent'] = con_str
             row['rule'] = f"{ant_str} => {con_str}"
+            
+            # === MÉTRICAS ARM ADICIONALES (informativas) ===
+            arm_metrics = self._calculate_arm_metrics(ant_items, con_items, problem)
+            for metric_name, metric_val in arm_metrics.items():
+                row[f'arm_{metric_name}'] = metric_val
             
             # Save raw genes
             row['encoded_rule'] = json.dumps(X[i].tolist())

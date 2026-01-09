@@ -289,11 +289,11 @@ class ARMProblem(Problem):
         
         # Climate Scenario - 5 Objectives
         # ClimateMetrics ya retorna valores en [-1, 1] listos para MOEA/D
-        'co2_emission': (-1.0, 1.0),
-        'energy_consumption': (-1.0, 1.0),
-        'renewable_share': (-1.0, 1.0),
-        'industrial_activity_index': (-1.0, 1.0),
-        'energy_price': (-1.0, 1.0),
+        'co2_emission': (0.0, 1.0),
+        'energy_consumption': (0.0, 1.0),
+        'renewable_share': (0.0, 1.0),
+        'industrial_activity_index': (0.0, 1.0),
+        'energy_price': (0.0, 1.0)
     }
     
     def __init__(

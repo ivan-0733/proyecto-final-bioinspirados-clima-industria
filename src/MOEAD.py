@@ -251,138 +251,269 @@ class AdaptiveMOEAD(MOEAD):
                     raise
 
 
+import numpy as np
+import logging
+from pymoo.core.problem import Problem
+from src.representation import RuleIndividual
+
+logger = logging.getLogger(__name__)
+
+
 class ARMProblem(Problem):
-    def __init__(self, metadata, supports, df, config, validator, metrics, logger):
+    """
+    Problema de Optimización Multiobjetivo para Minería de Reglas de Asociación.
+    
+    Esta clase define:
+    - Variables de decisión: Genoma diploide de la regla
+    - Objetivos: Métricas configurables (scenario-dependent)
+    - Evaluación: Cálculo de fitness para cada individuo
+    """
+    
+    # Rangos de normalización por métrica
+    METRIC_RANGES = {
+        # Scenario 1 - Casual ARM
+        'casual-supp': (0.0, 1.0),
+        'casual-conf': (0.0, 1.0),
+        'maxConf': (0.0, 1.0),
+        'casual_support': (0.0, 1.0),
+        'casual_confidence': (0.0, 1.0),
+        'max_conf': (0.0, 1.0),
+        
+        # Scenario 2 - Correlation
+        'jaccard': (0.0, 1.0),
+        'cosine': (0.0, 1.0),
+        'phi': (-1.0, 1.0),
+        'phi_coefficient': (-1.0, 1.0),
+        'kappa': (-1.0, 1.0),
+        'k_measure': (-1.0, 1.0),
+        
+        # Climate Scenario - 5 Objectives
+        # ClimateMetrics ya retorna valores en [-1, 1] listos para MOEA/D
+        'co2_emission': (-1.0, 1.0),
+        'energy_consumption': (-1.0, 1.0),
+        'renewable_share': (-1.0, 1.0),
+        'industrial_activity_index': (-1.0, 1.0),
+        'energy_price': (-1.0, 1.0),
+    }
+    
+    def __init__(
+        self, 
+        metadata: dict,
+        supports: dict, 
+        df, 
+        config: dict,
+        validator,
+        metrics,
+        logger_instance
+    ):
+        """
+        Inicializa el problema ARM.
+        
+        Args:
+            metadata: Metadata del dataset
+            supports: Diccionario de soportes
+            df: DataFrame procesado
+            config: Configuración del experimento
+            validator: Instancia de ARMValidator
+            metrics: Instancia de métricas (ClimateMetrics, etc.)
+            logger_instance: Logger para reglas descartadas
+        """
         self.metadata = metadata
         self.supports = supports
         self.config = config
         self.objectives = config['objectives']['selected']
         self.n_obj = len(self.objectives)
-        self.logger = logger
+        self.logger = logger_instance
         
-        # Determine number of genes from metadata
+        # Determinar número de genes desde metadata
         dummy = RuleIndividual(metadata=metadata)
         self.n_var = 2 * dummy.num_genes
         
         self.validator = validator
         self.metrics = metrics
         
-        # Metric normalization ranges (min, max) for each metric
-        # This ensures all objectives are in [0, 1] scale before negation
-        self.metric_ranges = {
-            # Scenario 1 - Casual ARM
-            'casual-supp': (0.0, 1.0),
-            'casual-conf': (0.0, 1.0),
-            'maxConf': (0.0, 1.0),
-            'casual_support': (0.0, 1.0),
-            'casual_confidence': (0.0, 1.0),
-            'max_conf': (0.0, 1.0),
-            
-            # Scenario 2 - Correlation
-            'jaccard': (0.0, 1.0),
-            'cosine': (0.0, 1.0),
-            'phi': (-1.0, 1.0),
-            'phi_coefficient': (-1.0, 1.0),
-            'kappa': (-1.0, 1.0),
-            'k_measure': (-1.0, 1.0),
-            
-            # Climate Scenario - 5 Objectives (already normalized by ClimateMetrics)
-            'co2_emission': (0.0, 1.0),
-            'energy_consumption': (0.0, 1.0),
-            'renewable_share': (0.0, 1.0),
-            'industrial_activity_index': (0.0, 1.0),
-            'energy_price': (0.0, 1.0),
-            
-            # Legacy aliases for backward compatibility
-            'avg_co2': (0.0, 1.0),
-            'avg_consumption': (0.0, 1.0),
-            'avg_renewable': (0.0, 1.0),
-            'avg_industry': (0.0, 1.0),
-            'avg_price': (0.0, 1.0),
-        }
-
-        super().__init__(n_var=self.n_var, 
-                         n_obj=self.n_obj, 
-                         n_ieq_constr=0, 
-                         xl=0, 
-                         xu=1) # Bounds not strictly used for custom sampling/mutation
+        # Detectar si es escenario Climate
+        self.is_climate_scenario = hasattr(metrics, 'METRIC_NAMES')
+        
+        # Llamar constructor padre
+        super().__init__(
+            n_var=self.n_var, 
+            n_obj=self.n_obj, 
+            n_ieq_constr=0,
+            xl=0, 
+            xu=1
+        )
+        
+        logger.info(
+            f"ARMProblem initialized: {self.n_var} vars, {self.n_obj} objectives, "
+            f"climate_mode={self.is_climate_scenario}"
+        )
     
     def _normalize_metric(self, value: float, metric_name: str) -> float:
         """
-        Normalize metric value to [0, 1] range.
+        Normaliza valor de métrica al rango [0, 1].
         
         Args:
-            value: Raw metric value
-            metric_name: Name of the metric
-        
+            value: Valor crudo de la métrica
+            metric_name: Nombre de la métrica
+            
         Returns:
-            Normalized value in [0, 1]
+            Valor normalizado en [0, 1]
         """
-        if metric_name not in self.metric_ranges:
-            # Unknown metric, assume [0, 1]
+        if metric_name not in self.METRIC_RANGES:
             return value
         
-        min_val, max_val = self.metric_ranges[metric_name]
+        min_val, max_val = self.METRIC_RANGES[metric_name]
         
-        # Normalize to [0, 1]
         if max_val == min_val:
-            return 0.5  # Avoid division by zero
+            return 0.5
         
         normalized = (value - min_val) / (max_val - min_val)
-        
-        # Clamp to [0, 1] to handle edge cases
         return max(0.0, min(1.0, normalized))
 
     def _evaluate(self, x, out, *args, **kwargs):
-        # x shape: (n_pop, n_var)
+        """
+        Evalúa la población.
+        
+        ⚠️  CORRECCIÓN CRÍTICA:
+        El bug original era que obj_values se calculaba pero NUNCA
+        se asignaba a F[i, :]. Ahora está corregido.
+        
+        Args:
+            x: Matriz de genomas (n_pop × n_var)
+            out: Diccionario de salida con "F" para fitness
+        """
         n_pop = x.shape[0]
         F = np.zeros((n_pop, self.n_obj))
         
         for i in range(n_pop):
             ind_genome = x[i]
             
-            # Extract rule items using temp individual
+            # Extraer items de la regla
             temp_ind = RuleIndividual(self.metadata)
             temp_ind.X = ind_genome
             ant, con = temp_ind.get_rule_items()
             
-            # 1. Validate Structure & Constraints
+            # 1. Validar estructura y restricciones
             is_valid, reason, _ = self.validator.validate(ant, con)
             
             if not is_valid:
-                # Log invalid individual
+                # Log individuo inválido
                 self.logger.log(temp_ind, f"invalid_structure:{reason}")
                 
-                # Penalty for invalid individuals
-                # Assign a value worse than any possible valid metric
-                # Metrics are [-1, 1] or [0, 1]. We minimize -Metric.
-                # So valid range is [-1, 1].
-                # We assign 2.0 to ensure it's dominated by everything.
+                # Penalización: valor peor que cualquier métrica válida
                 F[i, :] = 2.0
                 continue
 
-            # 2. Calculate Metrics
-            # get_metrics returns (values_list, errors_dict)
+            # 2. Calcular métricas
             vals, errors = self.metrics.get_metrics(ant, con, self.objectives)
             
-            # Extract and process objectives
+            # 3. Procesar objetivos
             obj_values = []
+            
             for metric_name, val in zip(self.objectives, vals):
                 if val is None:
-                    # Penalty for undefined metric
-                    obj_values.append(2.0) 
+                    # Penalización por métrica indefinida
+                    obj_values.append(2.0)
                 else:
-                    # Check if using ClimateMetrics (already handles normalization + direction)
-                    if hasattr(self.metrics, 'METRIC_NAMES'):
-                        # Climate scenario: metrics already normalized and direction-adjusted
-                        # ClimateMetrics returns values ready for minimization
+                    if self.is_climate_scenario:
+                        # ===== CLIMATE SCENARIO =====
+                        # ClimateMetrics ya retorna valores listos para minimización
+                        # Rango: [-1, 1] donde menor = mejor
                         obj_values.append(val)
                     else:
-                        # Other scenarios: normalize and negate for maximization
+                        # ===== OTROS SCENARIOS =====
+                        # Normalizar y negar para maximización
                         normalized = self._normalize_metric(val, metric_name)
                         obj_values.append(-normalized)
+            
+            # ⚠️  CORRECCIÓN CRÍTICA: Asignar obj_values a F[i, :]
+            # Este era el bug - esta línea faltaba en el código original!
+            F[i, :] = obj_values
         
         out["F"] = F
+
+    def decode_individual(self, genome: np.ndarray) -> dict:
+        """
+        Decodifica un genoma a una regla legible.
+        
+        Args:
+            genome: Vector de genoma
+            
+        Returns:
+            Dict con antecedent, consequent, y representación string
+        """
+        temp_ind = RuleIndividual(self.metadata)
+        temp_ind.X = genome
+        ant, con = temp_ind.get_rule_items()
+        
+        # Convertir índices a nombres
+        feature_order = self.metadata.get('feature_order', [])
+        variables = self.metadata.get('variables', {})
+        
+        def items_to_str(items):
+            parts = []
+            for var_idx, val_idx in items:
+                if var_idx < len(feature_order):
+                    var_name = feature_order[var_idx]
+                    var_meta = variables.get(var_name, {})
+                    labels = var_meta.get('labels', [])
+                    
+                    if val_idx < len(labels):
+                        val_str = labels[val_idx]
+                    else:
+                        val_str = str(val_idx)
+                    
+                    parts.append(f"{var_name}={val_str}")
+                else:
+                    parts.append(f"var{var_idx}={val_idx}")
+            return parts
+        
+        ant_str = items_to_str(ant)
+        con_str = items_to_str(con)
+        
+        return {
+            'antecedent': ant,
+            'consequent': con,
+            'antecedent_str': ant_str,
+            'consequent_str': con_str,
+            'rule_str': f"{' AND '.join(ant_str)} => {' AND '.join(con_str)}"
+        }
+
+
+class ARMProblemV2(ARMProblem):
+    """
+    Versión mejorada de ARMProblem con diagnósticos adicionales.
+    """
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.eval_count = 0
+        self.valid_count = 0
+        self.invalid_count = 0
+    
+    def _evaluate(self, x, out, *args, **kwargs):
+        """Evaluación con tracking de estadísticas."""
+        self.eval_count += x.shape[0]
+        
+        # Llamar evaluación base
+        super()._evaluate(x, out, *args, **kwargs)
+        
+        # Contar válidos/inválidos
+        F = out["F"]
+        valid_mask = F[:, 0] < 2.0
+        self.valid_count += np.sum(valid_mask)
+        self.invalid_count += np.sum(~valid_mask)
+    
+    def get_stats(self) -> dict:
+        """Retorna estadísticas de evaluación."""
+        return {
+            'total_evaluations': self.eval_count,
+            'valid': self.valid_count,
+            'invalid': self.invalid_count,
+            'validity_rate': self.valid_count / max(1, self.eval_count)
+        }
+
 class MOEAD_ARM:
     """
     Wrapper class for MOEA/D algorithm applied to Association Rule Mining.

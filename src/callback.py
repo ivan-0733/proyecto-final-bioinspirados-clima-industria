@@ -6,7 +6,8 @@ import pandas as pd
 from pymoo.core.callback import Callback
 from pymoo.indicators.hv import HV
 from src.representation import RuleIndividual
-from src.MOEAD import StuckRunDetected
+# from src.MOEAD import StuckRunDetected
+from src.core.exceptions import MOEADDeadlockError
 
 from src.metrics.scenario1 import Scenario1Metrics
 from src.metrics.scenario2 import Scenario2Metrics

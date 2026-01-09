@@ -37,9 +37,9 @@
     
     "termination": {
       "enabled": true,
-      "_comment": "ftol relajado para permitir exploración",
-      "ftol": 1e-07,
-      "period": 80
+      "_comment": "Periodo ajustado para detectar estancamiento real",
+      "ftol": 1e-06,
+      "period": 50
     },
     
     "initialization": {
@@ -90,11 +90,11 @@
     
     "stuck_detection": {
       "enabled": true,
-      "_comment_v4": "MUY PERMISIVO - permitir exploración completa",
-      "window": 100,
-      "min_new": 0,
-      "hv_window": 100,
-      "hv_tol": 1e-10
+      "_comment_v4": "ESTRICTO - Debe generar al menos 5 reglas nuevas cada 50 gens",
+      "window": 50,
+      "min_new": 5,
+      "hv_window": 50,
+      "hv_tol": 1e-06
     }
   },
   

@@ -30,6 +30,7 @@ from src.validator import ARMValidator
 from src.metrics import MetricsFactory
 from src.loggers import DiscardedRulesLogger
 from src.optimization import AdaptiveControl, ProbabilityConfig, StuckDetector
+from src.core.exceptions import MOEADDeadlockError
 
 def get_H_from_N(N, M):
     """
@@ -57,9 +58,9 @@ from types import SimpleNamespace
 logger = logging.getLogger(__name__)
 
 
-class StuckRunDetected(Exception):
-    """Raised when the stuck detector decides to stop the run early."""
-    pass
+# class StuckRunDetected(Exception):
+    # """Raised when the stuck detector decides to stop the run early."""
+    # pass
 
 class AdaptiveMOEAD(MOEAD):
     """
@@ -667,14 +668,14 @@ class MOEAD_ARM:
                 callback=callback,
                 verbose=False
             )
-        except StuckRunDetected as e:
+        except MOEADDeadlockError as e:  # <--- CORRECCIÓN: Capturar la excepción real del detector
             logger.warning("Optimization stopped by stuck detector: %s", e)
-            print(f"Optimization stopped by stuck detector: {e}")
+            print(f"\n[!] Optimization stopped by stuck detector: {e}")
+            # Recuperar la mejor población encontrada hasta el momento
             current_opt = algorithm.opt if hasattr(algorithm, 'opt') and algorithm.opt is not None else algorithm.pop
             res = SimpleNamespace(opt=current_opt)
         except Exception as e:
             logger.exception("Optimization aborted by unexpected error: %s", e)
-            print(f"Optimization aborted by unexpected error: {e}")
             raise
         
         return res

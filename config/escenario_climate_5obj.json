@@ -1,22 +1,16 @@
 {
-  "_comment": "=== CONFIGURACIÓN v4.0 - WORLD COMPETITION READY ===",
-  "_version": "4.0 - Continuous Values Fixed",
-  "_changes_v4": [
-    "1. ClimateMetrics ahora usa valores CONTINUOS del dataset RAW",
-    "2. Filtrado por discretizado, evaluación por continuo",
-    "3. Reglas más grandes para patrones específicos",
-    "4. Stuck detection más permisivo"
-  ],
+  "_comment_config": "Se establece la configuración diseñada para utilizar valores continuos del dataset original durante la evaluación de métricas climáticas, garantizando una precisión real en los objetivos de sostenibilidad.",
   
   "experiment": {
-    "name": "MOEAD_Climate_5Obj_v4_WorldReady",
-    "description": "Optimización multiobjetivo clima-industria con MOEA/D v4.0 - Valores Continuos",
+    "name": "MOEAD_Climate_5Obj_WorldReady",
+    "description": "Optimización multiobjetivo clima-industria con MOEA/D - Valores Continuos",
     "scenario": "climate_5_obj",
     "random_seed": 42,
     "output_root": "results"
   },
   
   "dataset": {
+    "_comment_data_strategy": "Se definen dos rutas de datos para mantener la armonía del sistema: el archivo procesado se utiliza para filtrar y navegar el espacio de búsqueda discreto, mientras que el archivo raw se carga para calcular el impacto real en las métricas climáticas (CO2, energía, etc.) usando valores continuos.",
     "name": "climate_energy",
     "processed_path": "data/processed/climate_dataset/climate_dataset_processed.csv",
     "raw_path": "data/raw/climate_dataset/global_climate_energy_2020_2024.csv",
@@ -27,17 +21,17 @@
   "use_sampling": false,
   
   "algorithm": {
-    "_comment_generations": "300 generaciones para convergencia completa",
+    "_comment_generations": "Se define un número de generaciones suficiente para permitir que el algoritmo evolutivo madure y converja hacia soluciones climáticas óptimas sin incurrir en un costo computacional excesivo.",
     "generations": 300,
     
-    "_comment_pop_size": "Das-Dennis H=5 → 126 direcciones para 5 objetivos",
+    "_comment_pop_size": "Se calcula el tamaño de la población basándose en el método Das-Dennis para 5 objetivos, lo cual genera exactamente 126 direcciones de referencia necesarias para cubrir uniformemente el espacio de soluciones multidimensional.",
     "population_size": 126,
     
     "logging_interval": 10,
     
     "termination": {
       "enabled": true,
-      "_comment": "Periodo ajustado para detectar estancamiento real",
+      "_comment": "Se activa la finalización temprana para detener el proceso si se detecta que las mejoras en el frente de Pareto son insignificantes durante un periodo determinado, optimizando así el uso de recursos.",
       "ftol": 1e-06,
       "period": 50
     },
@@ -48,7 +42,7 @@
     },
     
     "decomposition": {
-      "_comment": "PBI con theta=5 para 5 objetivos",
+      "_comment": "Se utiliza el método PBI (Penalty-based Boundary Intersection) para descomponer el problema complejo de 5 objetivos en subproblemas escalares más sencillos, manteniendo un balance entre convergencia y diversidad de soluciones.",
       "method": "pbi",
       "params": { 
         "theta": 5.0
@@ -56,7 +50,7 @@
     },
     
     "neighborhood": {
-      "_comment": "Vecindario balanceado para exploración e intensificación",
+      "_comment": "Se define un vecindario para cada solución, permitiendo que los individuos intercambien información genética con sus vecinos cercanos para mejorar localmente sin perder la exploración global.",
       "size": 20,
       "replacement_size": 2,
       "selection_probability": 0.9
@@ -71,7 +65,7 @@
         }
       },
       "mutation": {
-        "_comment": "conservative para balance calidad/velocidad",
+        "_comment": "Se configura una estrategia de mutación conservadora que altera levemente las reglas (extendiendo o contrayendo condiciones) para explorar variantes cercanas sin destruir la estructura de las reglas de alta calidad ya encontradas.",
         "method": "conservative",
         "active_ops": ["extension", "contraction", "replacement"],
         "probability": {
@@ -90,7 +84,7 @@
     
     "stuck_detection": {
       "enabled": true,
-      "_comment_v4": "ESTRICTO - Debe generar al menos 5 reglas nuevas cada 50 gens",
+      "_comment": "Se implementa un mecanismo de seguridad estricto que reinicia o detiene la búsqueda si no se generan nuevas reglas válidas en una ventana de tiempo, evitando que el algoritmo pierda tiempo en callejones sin salida.",
       "window": 50,
       "min_new": 5,
       "hv_window": 50,
@@ -99,7 +93,7 @@
   },
   
   "objectives": {
-    "_comment": "5 objetivos en [0,1] donde 0=óptimo para todos (MOEA/D minimiza)",
+    "_comment": "Se normalizan los 5 objetivos al rango [0,1] y se tratan internamente como problemas de minimización para que el algoritmo matemático funcione uniformemente, independientemente de si la meta real es aumentar (renovables) o reducir (emisiones).",
     "selected": [
       "co2_emission",
       "energy_consumption",
@@ -108,7 +102,7 @@
       "energy_price"
     ],
     "directions": {
-      "_comment": "Estas direcciones son para INTERPRETACIÓN, no para MOEA/D",
+      "_comment": "Se especifican las direcciones reales de optimización para facilitar la interpretación humana en los reportes finales, distinguiendo qué métricas se buscan maximizar y cuáles minimizar.",
       "co2_emission": "minimize",
       "energy_consumption": "minimize",
       "renewable_share": "maximize",
@@ -119,14 +113,17 @@
   
   "constraints": {
     "rule_validity": {
-      "_comment": "Reglas más grandes para encontrar patrones específicos",
+      "_comment": "Se permite una mayor complejidad en los antecedentes y consecuentes para descubrir patrones climáticos y de industria específicos y detallados, en lugar de reglas generales y obvias.",
       "min_antecedent_items": 1,
       "min_consequent_items": 1,
       "max_antecedent_items": 5,
       "max_consequent_items": 3
     },
     "metric_thresholds": {
-      "_comment": "Sin umbrales - dejar que MOEA/D explore todo"
+      "_comment": "Se eliminan los umbrales rígidos para permitir que el algoritmo explore libremente todo el espacio de búsqueda y encuentre compromisos (trade-offs) interesantes entre los objetivos en conflicto.",
+      "fixed_antecedents": [],
+      "fixed_consequents": [],
+      "forbidden_pairs": []
     },
     "exclusions": {
       "fixed_antecedents": [],
@@ -136,7 +133,7 @@
   },
   
   "hypervolume": {
-    "_comment_v4": "Configuración explícita del hypervolume",
+    "_comment": "Se configura el cálculo del hipervolumen, una métrica global que resume qué tan bien el conjunto de soluciones domina el espacio objetivo y qué tan diversas son las opciones encontradas.",
     "reference_point": "nadir",
     "nadir_value": 1.1,
     "filter_invalid": true,

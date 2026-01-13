@@ -1,77 +1,103 @@
 {
-    "dataset_name": "Climate Energy 2020-2024",
-    "target_variable": {
-      "name": "energy_price",
-      "type": "ordinal",
-      "cardinality": 5
+  "_comment_file_purpose": "Se define el mapa de traducción que el sistema utiliza para entender los datos. Dado que el algoritmo no procesa bien una infinidad de números decimales distintos, este archivo explica cómo agrupar esos números en categorías ordenadas y cómo convertir nombres de países en códigos numéricos, permitiendo que la búsqueda de soluciones climáticas sea eficiente y ordenada.",
+
+  "dataset_name": "Climate Energy 2020-2024",
+  
+  "target_variable": {
+    "_comment_variable": "Se identifica la variable principal que suele observarse como resultado final, aunque en este sistema multiobjetivo se evalúan varias a la vez. Se indica que es de tipo ordinal porque sus valores tienen un orden jerárquico de menor a mayor importancia.",
+    "name": "energy_price",
+    "type": "ordinal",
+    "cardinality": 5
+  },
+  
+  "drop_columns": [
+    "date"
+  ],
+  
+  "feature_order": [
+    "country",
+    "avg_temperature",
+    "humidity",
+    "co2_emission",
+    "energy_consumption",
+    "renewable_share",
+    "urban_population",
+    "industrial_activity_index",
+    "energy_price"
+  ],
+  
+  "categorical_encoding": {
+    "_comment_encoding": "Se realiza una conversión de palabras a números enteros. Como las operaciones matemáticas no se pueden hacer con texto, se asigna un identificador único a cada país. Esto permite que el algoritmo agrupe o separe regiones geográficas tratándolas como valores numéricos simples.",
+    "country": {
+      "type": "nominal",
+      "mapping": {
+        "Australia": 0, "Brazil": 1, "Canada": 2, "China": 3, "France": 4,
+        "Germany": 5, "India": 6, "Indonesia": 7, "Italy": 8, "Japan": 9,
+        "Mexico": 10, "Netherlands": 11, "Norway": 12, "Poland": 13,
+        "South Africa": 14, "Spain": 15, "Sweden": 16, "Turkey": 17,
+        "United Kingdom": 18, "United States": 19
+      },
+      "cardinality": 20
+    }
+  },
+  
+  "continuous_to_categorical": {
+    "_comment_strategy": "Se aplica una estrategia de división por Quintiles para transformar números continuos complejos en cinco niveles simples. Se ordenan todos los datos de menor a mayor y se cortan en cinco partes iguales, asegurando que cada nivel (desde Muy Bajo hasta Muy Alto) contenga exactamente el 20% de la información total. Esto evita que el algoritmo ignore situaciones extremas y garantiza un aprendizaje balanceado.",
+    
+    "avg_temperature": {
+      "_comment_logic": "Se definen los límites de temperatura dividiendo los registros históricos en cinco grupos de igual tamaño.",
+      "type": "ordinal", "cardinality": 5,
+      "bins": [-999999999.0, 3.98, 10.53, 16.44, 22.62],
+      "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
     },
-    "drop_columns": [
-      "date"
-    ],
-    "feature_order": [
-      "country",
-      "avg_temperature",
-      "humidity",
-      "co2_emission",
-      "energy_consumption",
-      "renewable_share",
-      "urban_population",
-      "industrial_activity_index",
-      "energy_price"
-    ],
-    "categorical_encoding": {
-      "country": {
-        "type": "nominal",
-        "mapping": {
-          "Australia": 0, "Brazil": 1, "Canada": 2, "China": 3, "France": 4,
-          "Germany": 5, "India": 6, "Indonesia": 7, "Italy": 8, "Japan": 9,
-          "Mexico": 10, "Netherlands": 11, "Norway": 12, "Poland": 13,
-          "South Africa": 14, "Spain": 15, "Sweden": 16, "Turkey": 17,
-          "United Kingdom": 18, "United States": 19
-        },
-        "cardinality": 20
-      }
+    
+    "humidity": {
+      "_comment_logic": "Se establecen los rangos de humedad para agrupar los datos desde las zonas más secas hasta las más húmedas equitativamente.",
+      "type": "ordinal", "cardinality": 5,
+      "bins": [-999999999.0, 41.98, 54.01, 66.0, 78.02],
+      "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
     },
-    "continuous_to_categorical": {
-      "avg_temperature": {
-        "type": "ordinal", "cardinality": 5,
-        "bins": [-999999999.0, 3.98, 10.53, 16.44, 22.62],
-        "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
-      },
-      "humidity": {
-        "type": "ordinal", "cardinality": 5,
-        "bins": [-999999999.0, 41.98, 54.01, 66.0, 78.02],
-        "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
-      },
-      "co2_emission": {
-        "type": "ordinal", "cardinality": 5,
-        "bins": [-999999999.0, 213.81, 354.08, 491.59, 675.60],
-        "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
-      },
-      "energy_consumption": {
-        "type": "ordinal", "cardinality": 5,
-        "bins": [-999999999.0, 3652.72, 5810.44, 7984.73, 10904.96],
-        "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
-      },
-      "renewable_share": {
-        "type": "ordinal", "cardinality": 5,
-        "bins": [-999999999.0, 11.09, 14.24, 17.23, 20.81],
-        "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
-      },
-      "urban_population": {
-        "type": "ordinal", "cardinality": 5,
-        "bins": [-999999999.0, 40.0, 60.0, 75.0, 85.0],
-        "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
-      },
-      "industrial_activity_index": {
-        "type": "ordinal", "cardinality": 5,
-        "bins": [-999999999.0, 52.22, 64.22, 76.09, 88.17],
-        "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
-      },
-      "energy_price": {
-        "type": "ordinal", "cardinality": 5,
-        "bins": [-999999999.0, 64.19, 98.20, 132.29, 166.65],
-        "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
-      }
+    
+    "co2_emission": {
+      "_comment_logic": "Se categorizan las emisiones contaminantes creando niveles que permiten identificar tanto a los países más limpios como a los más contaminantes con la misma facilidad.",
+      "type": "ordinal", "cardinality": 5,
+      "bins": [-999999999.0, 213.81, 354.08, 491.59, 675.60],
+      "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
+    },
+    
+    "energy_consumption": {
+      "_comment_logic": "Se segmenta el consumo energético para distinguir entre economías de bajo consumo y grandes demandantes de energía.",
+      "type": "ordinal", "cardinality": 5,
+      "bins": [-999999999.0, 3652.72, 5810.44, 7984.73, 10904.96],
+      "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
+    },
+    
+    "renewable_share": {
+      "_comment_logic": "Se clasifican los porcentajes de uso de energía verde, permitiendo al sistema premiar o analizar los distintos niveles de adopción tecnológica sostenible.",
+      "type": "ordinal", "cardinality": 5,
+      "bins": [-999999999.0, 11.09, 14.24, 17.23, 20.81],
+      "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
+    },
+    
+    "urban_population": {
+      "_comment_logic": "Se distribuye la población urbana en niveles para entender el impacto de la densidad de ciudades en el clima.",
+      "type": "ordinal", "cardinality": 5,
+      "bins": [-999999999.0, 40.0, 60.0, 75.0, 85.0],
+      "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
+    },
+    
+    "industrial_activity_index": {
+      "_comment_logic": "Se mide la intensidad industrial dividiéndola en cinco grados para correlacionar la producción fabril con el impacto ambiental.",
+      "type": "ordinal", "cardinality": 5,
+      "bins": [-999999999.0, 52.22, 64.22, 76.09, 88.17],
+      "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
+    },
+    
+    "energy_price": {
+      "_comment_logic": "Se escalonan los costos de la energía para analizar cómo el precio influye en el consumo y en la adopción de nuevas fuentes.",
+      "type": "ordinal", "cardinality": 5,
+      "bins": [-999999999.0, 64.19, 98.20, 132.29, 166.65],
+      "labels": ["Very Low", "Low", "Medium", "High", "Very High"], "right": true
     }
   }
+}

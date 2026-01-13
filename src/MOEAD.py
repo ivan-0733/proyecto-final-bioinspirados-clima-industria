@@ -1,11 +1,13 @@
-""" 
-This module implements the MOEA/D algorithm for multi-objective optimization
-applied to Association Rule Mining (ARM).
+"""
+Este módulo implementa el motor central de optimización (MOEA/D) aplicado a la Minería de Reglas de Asociación.
 
-It integrates custom components:
-- AdaptiveMOEAD: Extends pymoo's MOEA/D with 1/5 Rule for adaptive mutation.
-- ARMProblem: Defines the optimization problem (objectives, evaluation).
-- Custom Operators: Mutation, Crossover, Sampling.
+El objetivo principal aquí es tomar decisiones inteligentes para encontrar reglas que equilibren múltiples metas conflictivas,
+como reducir emisiones de CO2 y mantener la actividad industrial.
+
+Integra tres componentes clave que trabajan en conjunto:
+- AdaptiveMOEAD: El cerebro evolutivo que aprende y ajusta sus estrategias (mutación/cruce) mientras busca soluciones.
+- ARMProblem: La definición del examen; aquí es donde se evalúa qué tan buena es una regla comparándola con los datos climáticos reales.
+- Operadores Personalizados: Las herramientas que modifican las reglas (cortar, pegar, cambiar) para crear nuevas variantes.
 """
 
 import numpy as np
@@ -34,15 +36,19 @@ from src.core.exceptions import MOEADDeadlockError
 
 def get_H_from_N(N, M):
     """
-    Calculates the number of partitions H for Das-Dennis weights 
-    given a target population size N and number of objectives M.
-    Returns H such that nCr(H+M-1, M-1) is closest to N.
+    Se calcula matemáticamente cuántas divisiones o 'direcciones de referencia' se necesitan 
+    para cubrir uniformemente el espacio de objetivos.
+    
+    Imagina que tenemos un pastel (el espacio de soluciones) y queremos cortarlo en rebanadas iguales 
+    para asegurarnos de buscar en todas partes (bajas emisiones, alta energía, etc.).
+    Esta función encuentra el número de cortes (H) necesario para tener aproximadamente N rebanadas 
+    cuando tenemos M objetivos distintos.
     """
     H = 1
     while True:
         count = math.comb(H + M - 1, M - 1)
         if count >= N:
-            # Check if previous H was closer
+            # Se verifica si el número anterior estaba más cerca del objetivo deseado
             prev_count = math.comb((H - 1) + M - 1, M - 1)
             if abs(prev_count - N) < abs(count - N):
                 return H - 1
@@ -58,18 +64,18 @@ from types import SimpleNamespace
 logger = logging.getLogger(__name__)
 
 
-# class StuckRunDetected(Exception):
-    # """Raised when the stuck detector decides to stop the run early."""
-    # pass
-
 class AdaptiveMOEAD(MOEAD):
     """
-    Custom MOEA/D with adaptive probability control and stuck detection.
+    Se define una versión personalizada del algoritmo MOEA/D que tiene la capacidad de adaptarse.
+    A diferencia de un algoritmo estático, este observa su propio éxito y ajusta qué tanto 
+    cambia las reglas (mutación) o qué tanto las mezcla (cruce) para evitar quedarse atascado.
     """
     def __init__(self, mutation_adapter_config, crossover_adapter_config, n_replace=2, prob_neighbor_mating=0.9, stuck_config=None, **kwargs):
         super().__init__(prob_neighbor_mating=prob_neighbor_mating, **kwargs)
         
-        # Adaptive control for mutation/crossover probabilities
+        # Se configura el "cerebro adaptativo" (AdaptiveControl).
+        # Este componente recibe instrucciones sobre los límites permitidos para las probabilidades de mutación y cruce.
+        # Su trabajo es monitorear si las nuevas reglas son mejores que las anteriores y ajustar las probabilidades en consecuencia.
         self.adaptive_control = AdaptiveControl(
             mutation_config=ProbabilityConfig(
                 initial=mutation_adapter_config['initial'],
@@ -83,7 +89,9 @@ class AdaptiveMOEAD(MOEAD):
             )
         )
         
-        # Stuck detection
+        # Se configura el "detector de estancamiento" (StuckDetector).
+        # Este es un mecanismo de seguridad. Si el algoritmo pasa mucho tiempo (definido en stuck_config)
+        # sin encontrar ninguna regla nueva valiosa para el clima, este detector levanta una alerta para detener o reiniciar el proceso.
         stuck_cfg = stuck_config or {"enabled": False}
         if stuck_cfg.get("enabled", False):
             self.stuck_detector = StuckDetector(
@@ -101,36 +109,46 @@ class AdaptiveMOEAD(MOEAD):
         self.current_gen = 0
 
     def _infill(self):
+        # Este método se deja vacío intencionalmente porque controlamos el flujo manualmente en _next.
         return None
 
     def _advance(self, infills=None):
+        # Se avanza al siguiente paso del ciclo evolutivo.
         self._next()
 
     def _next(self):
-        # 1. Snapshot current population (X) to detect changes
+        """
+        Se ejecuta el ciclo principal de una generación evolutiva.
+        Aquí es donde ocurre la magia de la optimización paso a paso.
+        """
+        # 1. Se toma una fotografía del estado actual.
+        # Guardamos la población actual (old_X) para poder comparar al final si logramos algún cambio.
+        # También creamos un registro de 'firmas' (sig_set) para evitar crear reglas duplicadas.
         old_X = self.pop.get("X").copy()
-        # Track signatures to block duplicates during this generation
         sig_set = {tuple(x.flatten()) for x in old_X}
         dup_skips = 0
         curpop_dup_skips = 0
         replacements_accepted = 0
         self.last_counters = {"new": 0, "skip_new": 0, "skip_pop": 0}
         
-        # 2. Manual MOEA/D Step (Bypassing pymoo generator)
+        # 2. Se inicia el proceso manual de evolución.
         pop = self.pop
         
-        # Initialize ideal point if needed
+        # Si aún no tenemos un punto ideal (los mejores valores teóricos alcanzados hasta ahora), lo inicializamos.
         if not hasattr(self, 'ideal_point') or self.ideal_point is None:
             self.ideal_point = np.min(pop.get("F"), axis=0)
 
-        # Random permutation
+        # Se crea un orden aleatorio para visitar a cada individuo de la población.
         perm = np.random.permutation(len(pop))
         
         for i in perm:
-            # a) Select Neighbors
+            # a) Selección de Vecinos.
+            # En MOEA/D, no cruzamos a cualquiera con cualquiera. Cruzamos a individuos que tienen objetivos similares
+            # (sus 'vecinos'). Esto ayuda a refinar soluciones locales antes de buscar globalmente.
             nbs = self.neighbors[i]
             
-            # b) Mating Selection
+            # b) Selección para el Apareamiento.
+            # Decidimos si cruzamos con un vecino cercano (alta probabilidad) o con alguien aleatorio de toda la población (baja probabilidad).
             if np.random.random() < self.prob_neighbor_mating:
                 parent_indices = np.random.choice(nbs, 2, replace=False)
             else:
@@ -138,59 +156,63 @@ class AdaptiveMOEAD(MOEAD):
             
             parents = pop[parent_indices]
             
-            # c) Mating (Crossover + Mutation)
-            # Crossover
+            # c) Reproducción (Cruce y Mutación).
+            # Se extrae el ADN (genoma) de los padres seleccionados.
             p_X = np.array([parents[0].X, parents[1].X]) # (2, n_var)
             p_X_input = p_X[None, :, :] # (1, 2, n_var)
             
-            # Call _do directly to bypass pymoo's object handling
-            # Crossover returns (n_matings, n_parents, n_var) -> (1, 2, n_var)
+            # Se realiza el CRUCE: Mezclamos la información de los dos padres para crear hijos.
             off_X_pair = self.mating.crossover._do(self.problem, p_X_input)[0] # (2, n_var)
             
-            # Process BOTH offspring (User Requirement)
+            # Procesamos ambos hijos resultantes.
             for off_X_raw in off_X_pair:
-                # Mutation
-                # Call _do directly
+                # Se realiza la MUTACIÓN: Hacemos pequeños cambios aleatorios en el hijo.
+                # Esto es vital para descubrir cosas nuevas que no estaban en los padres.
                 off_X_mut = self.mating.mutation._do(self.problem, off_X_raw[None, :])[0] # (n_var,)
                 
-                # d) Evaluation
-                # Create temp population for evaluation
+                # d) Evaluación.
+                # Ahora que tenemos una nueva regla candidata (el hijo mutado), preguntamos: "¿Qué tan buena es?".
+                # Creamos una población temporal de uno solo y llamamos al evaluador (Problem).
                 off_pop = Population.new(X=np.array([off_X_mut]))
                 self.evaluator.eval(self.problem, off_pop)
                 off = off_pop[0]
 
-                # Deduplication guard: skip if already in current or new signatures
+                # Se verifica que no sea una regla duplicada que ya exista o acabemos de crear.
                 off_sig = tuple(off.X.flatten())
                 if off_sig in sig_set:
                     dup_skips += 1
                     continue
 
-                # Check for duplicates in current population
-                # This prevents the population from collapsing to a single individual
+                # Se verifica también contra la población actual para asegurar diversidad.
                 current_X = pop.get("X")
                 if np.any(np.all(current_X == off.X, axis=1)):
                     curpop_dup_skips += 1
                     continue
                 
-                # e) Update Ideal Point
+                # e) Actualización del Punto Ideal.
+                # Si este nuevo hijo logró un valor récord en algún objetivo (ej. el CO2 más bajo visto), actualizamos el punto ideal.
                 self.ideal_point = np.min(np.vstack([self.ideal_point, off.F]), axis=0)
                 
-                # f) Update Neighbors (Decomposition)
+                # f) Reemplazo de Vecinos (Descomposición).
+                # Comparamos al hijo con sus vecinos usando una fórmula matemática (Tchebycheff o PBI) que combina los objetivos.
                 weights = self.ref_dirs[nbs]
                 
                 off_fv = self.decomposition.do(off.F, weights, ideal_point=self.ideal_point)
                 nbs_F = pop[nbs].get("F")
                 nbs_fv = self.decomposition.do(nbs_F, weights, ideal_point=self.ideal_point)
                 
+                # Identificamos a qué vecinos supera este nuevo hijo.
                 improved_idx = np.where(off_fv < nbs_fv)[0]
                 
+                # Si supera a muchos, elegimos solo a unos pocos para reemplazar (para no eliminar demasiada diversidad de golpe).
                 if len(improved_idx) > self.n_replace:
                     np.random.shuffle(improved_idx)
                     improved_idx = improved_idx[:self.n_replace]
                 
+                # Realizamos el reemplazo: La regla vieja se descarta y la nueva toma su lugar.
                 for idx in improved_idx:
                     pop_idx = nbs[idx]
-                    # Final deduplication check against signature set
+                    
                     replace_sig = tuple(off.X.flatten())
                     if replace_sig in sig_set:
                         continue
@@ -198,7 +220,7 @@ class AdaptiveMOEAD(MOEAD):
                     sig_set.add(replace_sig)
                     replacements_accepted += 1
 
-        # Expose per-generation counters for callbacks/diagnostics
+        # Se guardan contadores para saber qué pasó en esta generación (cuántos entraron, cuántos se rechazaron por duplicados).
         self.last_counters = {
             "new": replacements_accepted,
             "skip_new": dup_skips,
@@ -207,8 +229,8 @@ class AdaptiveMOEAD(MOEAD):
         
         self.current_gen += 1
         
-        # Progress Bar
-        total_gen = self.termination.n_max_gen if hasattr(self.termination, 'n_max_gen') else 300 # Fallback
+        # Se muestra una barra de progreso en la consola para que el usuario sepa que el sistema está trabajando.
+        total_gen = self.termination.n_max_gen if hasattr(self.termination, 'n_max_gen') else 300 
         percent = (self.current_gen / total_gen) * 100
         bar_length = 30
         filled_length = int(bar_length * self.current_gen // total_gen)
@@ -216,32 +238,31 @@ class AdaptiveMOEAD(MOEAD):
         sys.stdout.write(f'\rProgress: |{bar}| {percent:.1f}% (Gen {self.current_gen}/{total_gen})')
         sys.stdout.flush()
         if self.current_gen >= total_gen:
-            print() # Newline at end
-        # Debug counters (lightweight)
+            print() 
         sys.stdout.write(f' | new:{replacements_accepted} skip_new:{dup_skips} skip_pop:{curpop_dup_skips}')
         sys.stdout.flush()
 
-        # 3. Calculate Success Rate and Adapt
+        # 3. Cálculo de Tasa de Éxito y Adaptación.
+        # Aquí el "cerebro adaptativo" revisa el trabajo hecho.
         new_X = self.pop.get("X")
         
-        # Count how many individuals changed
+        # Contamos cuántos individuos son diferentes respecto al inicio de la generación.
         diffs = (old_X != new_X)
         changes_per_ind = np.sum(diffs, axis=1)
         n_replacements = np.sum(changes_per_ind > 0)
         
-        # Record and adapt probabilities
+        # Le informamos al controlador adaptativo para que calcule nuevas probabilidades.
         self.adaptive_control.record_generation(n_replacements, len(self.pop))
         new_mut_prob, new_cx_prob = self.adaptive_control.update_probabilities()
         
-        # Update operator probabilities
+        # Se actualizan las herramientas (operadores) con las nuevas probabilidades.
         self.mating.mutation.prob = new_mut_prob
         self.mating.crossover.prob = new_cx_prob
         
-        # Record for stuck detection
+        # Se verifica si estamos estancados.
         if self.stuck_detector:
             self.stuck_detector.record_generation(replacements_accepted, None)
             
-            # Check if stuck
             try:
                 self.stuck_detector.raise_if_stuck(self.current_gen)
             except Exception as e:
@@ -262,15 +283,18 @@ logger = logging.getLogger(__name__)
 
 class ARMProblem(Problem):
     """
-    Problema de Optimización Multiobjetivo para Minería de Reglas de Asociación.
+    Se define el Problema de Optimización para las Reglas de Asociación.
     
-    Esta clase define:
-    - Variables de decisión: Genoma diploide de la regla
-    - Objetivos: Métricas configurables (scenario-dependent)
-    - Evaluación: Cálculo de fitness para cada individuo
+    Esta clase es el puente entre los números que maneja el algoritmo (genotipos) y 
+    el significado real de esos números (reglas climáticas).
+    
+    Sus responsabilidades son:
+    - Definir cuántas variables tiene el ADN de una regla.
+    - Definir cuántos objetivos estamos persiguiendo (ej. 5 objetivos climáticos).
+    - Evaluar cada solución candidata para asignarle una calificación.
     """
     
-    # Rangos de normalización por métrica
+    # Se definen los rangos para normalizar métricas comunes si es necesario.
     METRIC_RANGES = {
         # Scenario 1 - Casual ARM
         'casual-supp': (0.0, 1.0),
@@ -288,8 +312,8 @@ class ARMProblem(Problem):
         'kappa': (-1.0, 1.0),
         'k_measure': (-1.0, 1.0),
         
-        # Climate Scenario - 5 Objectives
-        # ClimateMetrics ya retorna valores en [-1, 1] listos para MOEA/D
+        # Escenario Climático - 5 Objetivos
+        # ClimateMetrics ya entrega valores listos entre 0 y 1, por lo que la normalización externa es mínima.
         'co2_emission': (0.0, 1.0),
         'energy_consumption': (0.0, 1.0),
         'renewable_share': (0.0, 1.0),
@@ -308,16 +332,16 @@ class ARMProblem(Problem):
         logger_instance
     ):
         """
-        Inicializa el problema ARM.
+        Se configura el problema recibiendo todos los datos necesarios.
         
         Args:
-            metadata: Metadata del dataset
-            supports: Diccionario de soportes
-            df: DataFrame procesado
-            config: Configuración del experimento
-            validator: Instancia de ARMValidator
-            metrics: Instancia de métricas (ClimateMetrics, etc.)
-            logger_instance: Logger para reglas descartadas
+            metadata: La estructura que nos dice qué significa cada gen (país, año, etc.).
+            supports: Datos precalculados para rapidez.
+            df: El dataset principal.
+            config: La configuración que nos dice qué objetivos importan hoy.
+            validator: El juez que decide si una regla tiene sentido lógico.
+            metrics: El experto (ej. ClimateMetrics) que calcula los valores reales de CO2, etc.
+            logger_instance: Donde anotamos las reglas que salieron mal.
         """
         self.metadata = metadata
         self.supports = supports
@@ -326,17 +350,17 @@ class ARMProblem(Problem):
         self.n_obj = len(self.objectives)
         self.logger = logger_instance
         
-        # Determinar número de genes desde metadata
+        # Se calcula el tamaño del genoma. Cada característica del dataset necesita espacio en el ADN.
         dummy = RuleIndividual(metadata=metadata)
         self.n_var = 2 * dummy.num_genes
         
         self.validator = validator
         self.metrics = metrics
         
-        # Detectar si es escenario Climate
+        # Se detecta si estamos trabajando en el escenario climático para aplicar su lógica específica.
         self.is_climate_scenario = hasattr(metrics, 'METRIC_NAMES')
         
-        # Llamar constructor padre
+        # Se inicializa la clase base de pymoo con las dimensiones calculadas.
         super().__init__(
             n_var=self.n_var, 
             n_obj=self.n_obj, 
@@ -346,20 +370,13 @@ class ARMProblem(Problem):
         )
         
         logger.info(
-            f"ARMProblem initialized: {self.n_var} vars, {self.n_obj} objectives, "
-            f"climate_mode={self.is_climate_scenario}"
+            f"Problema inicializado con {self.n_var} variables y {self.n_obj} objetivos. Modo Clima: {self.is_climate_scenario}"
         )
     
     def _normalize_metric(self, value: float, metric_name: str) -> float:
         """
-        Normaliza valor de métrica al rango [0, 1].
-        
-        Args:
-            value: Valor crudo de la métrica
-            metric_name: Nombre de la métrica
-            
-        Returns:
-            Valor normalizado en [0, 1]
+        Se transforma un valor crudo a una escala estándar de 0 a 1.
+        Esto es necesario porque el algoritmo trabaja mejor cuando todos los objetivos tienen escalas similares.
         """
         if metric_name not in self.METRIC_RANGES:
             return value
@@ -374,15 +391,14 @@ class ARMProblem(Problem):
 
     def _evaluate(self, x, out, *args, **kwargs):
         """
-        Evalúa la población.
+        Se realiza la evaluación de un grupo de individuos (reglas).
         
-        ⚠️  CORRECCIÓN CRÍTICA:
-        El bug original era que obj_values se calculaba pero NUNCA
-        se asignaba a F[i, :]. Ahora está corregido.
-        
-        Args:
-            x: Matriz de genomas (n_pop × n_var)
-            out: Diccionario de salida con "F" para fitness
+        El proceso es:
+        1. Recibir una matriz de números (genotipos).
+        2. Convertir esos números en reglas legibles (País X, Industria Y).
+        3. Validar si la regla tiene sentido (no vacía, no contradictoria).
+        4. Calcular sus métricas climáticas usando el dataset raw.
+        5. Guardar los resultados en la matriz de fitness 'F'.
         """
         n_pop = x.shape[0]
         F = np.zeros((n_pop, self.n_obj))
@@ -390,65 +406,63 @@ class ARMProblem(Problem):
         for i in range(n_pop):
             ind_genome = x[i]
             
-            # Extraer items de la regla
+            # Se reconstruye la regla a partir de los genes.
             temp_ind = RuleIndividual(self.metadata)
             temp_ind.X = ind_genome
             ant, con = temp_ind.get_rule_items()
             
-            # 1. Validar estructura y restricciones
+            # 1. Validación Estructural.
+            # Preguntamos: "¿Es esta una regla válida?".
             is_valid, reason, _ = self.validator.validate(ant, con)
             
             if not is_valid:
-                # Log individuo inválido
+                # Si la regla está rota (ej. consecuente vacío), la registramos y la penalizamos severamente.
                 self.logger.log(temp_ind, f"invalid_structure:{reason}")
                 
-                # Penalización: valor peor que cualquier métrica válida
+                # Se asigna un valor de 2.0 (muy malo, ya que buscamos minimizar hacia 0).
                 F[i, :] = 2.0
                 continue
 
-            # 2. Calcular métricas
+            # 2. Cálculo de Métricas Reales.
+            # Delegamos al experto (metrics engine) el cálculo sobre los datos reales.
             vals, errors = self.metrics.get_metrics(ant, con, self.objectives)
             
-            # 3. Procesar objetivos
+            # 3. Procesamiento de Objetivos.
             obj_values = []
             
             for metric_name, val in zip(self.objectives, vals):
                 if val is None:
-                    # Penalización por métrica indefinida
+                    # Si el cálculo falló (ej. división por cero), penalizamos.
                     obj_values.append(2.0)
                 else:
                     if self.is_climate_scenario:
-                        # ===== CLIMATE SCENARIO =====
-                        # ClimateMetrics ya retorna valores listos para minimización
-                        # Rango: [-1, 1] donde menor = mejor
+                        # ===== LÓGICA CLIMÁTICA =====
+                        # En el escenario de clima, las métricas ya vienen preparadas para minimización.
+                        # El cálculo interno de ClimateMetrics ya invirtió los valores que se maximizan
+                        # y normalizó todo al rango [0, 1], donde 0 es el ideal.
                         obj_values.append(val)
                     else:
-                        # ===== OTROS SCENARIOS =====
-                        # Normalizar y negar para maximización
+                        # ===== OTROS ESCENARIOS (Diabetes, etc.) =====
+                        # Aquí seguimos la lógica estándar: normalizamos y negamos si es necesario.
                         normalized = self._normalize_metric(val, metric_name)
                         obj_values.append(-normalized)
             
-            # ⚠️  CORRECCIÓN CRÍTICA: Asignar obj_values a F[i, :]
-            # Este era el bug - esta línea faltaba en el código original!
+            # Se asignan los valores calculados al individuo correspondiente.
             F[i, :] = obj_values
         
+        # Se guarda la matriz de resultados en la salida estándar de pymoo.
         out["F"] = F
 
     def decode_individual(self, genome: np.ndarray) -> dict:
         """
-        Decodifica un genoma a una regla legible.
-        
-        Args:
-            genome: Vector de genoma
-            
-        Returns:
-            Dict con antecedent, consequent, y representación string
+        Se traduce un genoma numérico a un formato legible por humanos.
+        Útil para reportes y logs, convirtiendo [0, 1, 5] en "País=Alemania".
         """
         temp_ind = RuleIndividual(self.metadata)
         temp_ind.X = genome
         ant, con = temp_ind.get_rule_items()
         
-        # Convertir índices a nombres
+        # Se recuperan los nombres reales desde la metadata.
         feature_order = self.metadata.get('feature_order', [])
         variables = self.metadata.get('variables', {})
         
@@ -484,7 +498,8 @@ class ARMProblem(Problem):
 
 class ARMProblemV2(ARMProblem):
     """
-    Versión mejorada de ARMProblem con diagnósticos adicionales.
+    Se define una variante del problema que lleva contabilidad extra de validaciones.
+    Útil para diagnóstico si queremos saber cuántas reglas inválidas estamos generando.
     """
     
     def __init__(self, *args, **kwargs):
@@ -494,20 +509,20 @@ class ARMProblemV2(ARMProblem):
         self.invalid_count = 0
     
     def _evaluate(self, x, out, *args, **kwargs):
-        """Evaluación con tracking de estadísticas."""
+        """Se evalúa igual que el padre, pero contando éxitos y fallos."""
         self.eval_count += x.shape[0]
         
-        # Llamar evaluación base
+        # Se llama a la evaluación original.
         super()._evaluate(x, out, *args, **kwargs)
         
-        # Contar válidos/inválidos
+        # Se cuentan cuántos tuvieron penalización (inválidos) y cuántos no.
         F = out["F"]
         valid_mask = F[:, 0] < 2.0
         self.valid_count += np.sum(valid_mask)
         self.invalid_count += np.sum(~valid_mask)
     
     def get_stats(self) -> dict:
-        """Retorna estadísticas de evaluación."""
+        """Se retornan las estadísticas acumuladas."""
         return {
             'total_evaluations': self.eval_count,
             'valid': self.valid_count,
@@ -517,18 +532,25 @@ class ARMProblemV2(ARMProblem):
 
 class MOEAD_ARM:
     """
-    Wrapper class for MOEA/D algorithm applied to Association Rule Mining.
-    Orchestrates the components.
+    Se define la clase orquestadora principal.
+    Esta clase actúa como el director de orquesta que prepara todo antes del concierto.
+    
+    Sus tareas son:
+    1. Preparar los datos (Discretos y Continuos).
+    2. Configurar el motor de métricas (ClimateMetrics).
+    3. Inicializar el algoritmo genético y sus operadores.
+    4. Ejecutar la optimización y manejar errores.
     """
     def __init__(self, config, data_context):
         self.config = config
-        self.data = data_context # Dict with df, supports, metadata
+        self.data = data_context # Diccionario con df, supports, metadata
         
-        # Determine scenario from config
+        # Se determina qué escenario estamos corriendo (ej. clima con 5 objetivos).
         scenario = self.config['experiment'].get('scenario', 'scenario_1')
         
-        # Initialize Components with MetricsFactory
-        # Obtener raw_df si existe (para ClimateMetrics v4.0)
+        # Se inicializan los componentes usando la Fábrica de Métricas.
+        # Es vital pasar 'raw_df' para el escenario climático, ya que ahí residen los valores reales
+        # necesarios para calcular el impacto ambiental verdadero.
         raw_df = self.data.get('raw_df', None)
         
         self.metrics = MetricsFactory.create_metrics(
@@ -559,36 +581,39 @@ class MOEAD_ARM:
         )
         
     def run(self, callback=None):
-        # Algorithm Parameters
+        # Se leen los parámetros del algoritmo (tamaño de población, generaciones).
         alg_config = self.config['algorithm']
         target_pop_size = alg_config['population_size']
         n_gen = alg_config['generations']
         
-        # Reference Directions (Decomposition)
-        # Calculate H for Das-Dennis
+        # Se configuran las Direcciones de Referencia.
+        # Estas actúan como guías para descomponer el problema multiobjetivo en subproblemas simples.
+        # Calculamos H para distribuir los pesos uniformemente según Das-Dennis.
         H = get_H_from_N(target_pop_size, self.problem.n_obj)
         ref_dirs = get_reference_directions("das-dennis", self.problem.n_obj, n_partitions=H)
         actual_pop_size = ref_dirs.shape[0]
         
-        print(f"Initialized MOEA/D with {actual_pop_size} reference directions (Target: {target_pop_size})")
+        print(f"MOEA/D inicializado con {actual_pop_size} direcciones de referencia (Objetivo: {target_pop_size})")
         
-        # Operators
-        # Check configuration for initialization method
+        # Se configuran los Operadores Genéticos.
+        
+        # 1. Inicialización (Sampling):
+        # Intentamos usar reglas pre-generadas si existen para empezar con buen pie.
         init_config = alg_config.get('initialization', {})
-        use_pregenerated = init_config.get('use_pregenerated', True)  # Default: True
+        use_pregenerated = init_config.get('use_pregenerated', True)
         pregenerated_path = Path("data/processed/pregenerated/valid_rules_1m.csv")
         
         if use_pregenerated and pregenerated_path.exists():
-            print(f"✓ Using pregenerated rules from {pregenerated_path}")
+            print(f"✓ Usando reglas pre-generadas desde {pregenerated_path}")
             sampling = PregeneratedSampling(
                 metadata=self.data['metadata'],
                 csv_path=str(pregenerated_path),
-                allow_duplicates=True  # Allow if needed for large populations
+                allow_duplicates=True
             )
         else:
             if use_pregenerated:
-                print(f"⚠ Pregenerated rules not found at {pregenerated_path}")
-            print(f"→ Using random initialization (slower but more exploratory)")
+                print(f"⚠ No se encontraron reglas pre-generadas en {pregenerated_path}")
+            print(f"→ Usando inicialización aleatoria (más lento pero explora más)")
             max_init_attempts = init_config.get('max_attempts', 10000)
             sampling = ARMSampling(
                 metadata=self.data['metadata'],
@@ -597,11 +622,14 @@ class MOEAD_ARM:
                 max_attempts=max_init_attempts
             )
         
+        # 2. Cruce (Crossover):
+        # Configuramos cómo se combinan dos reglas padres.
         crossover = DiploidNPointCrossover(
             prob=alg_config['operators']['crossover']['probability']['initial']
         )
         
-        # Create mutation using factory
+        # 3. Mutación (Mutation):
+        # Configuramos cómo se alteran las reglas aleatoriamente.
         mutation_type = alg_config['operators']['mutation'].get('method', 'mixed')
         mutation = create_mutation(
             mutation_type=mutation_type,
@@ -611,7 +639,8 @@ class MOEAD_ARM:
             config=alg_config['operators']['mutation']
         )
         
-        # Decomposition Method
+        # Se configura el Método de Descomposición (ej. PBI).
+        # Esto decide matemáticamente cómo agregamos los 5 objetivos en un solo valor escalar para cada dirección.
         decomp_config = alg_config['decomposition']
         method = decomp_config['method'].lower()
         params = decomp_config.get('params', {})
@@ -623,10 +652,10 @@ class MOEAD_ARM:
         elif method == 'weighted_sum' or method == 'ws':
             decomposition = WS()
         else:
-            print(f"Warning: Unknown decomposition method '{method}'. Defaulting to PBI.")
+            print(f"Advertencia: Método de descomposición desconocido '{method}'. Usando PBI por defecto.")
             decomposition = PBI()
 
-        # Algorithm Instance
+        # Se instancia el Algoritmo Completo.
         algorithm = AdaptiveMOEAD(
             mutation_adapter_config=alg_config['operators']['mutation']['probability'],
             crossover_adapter_config=alg_config['operators']['crossover']['probability'],
@@ -641,12 +670,12 @@ class MOEAD_ARM:
             stuck_config=alg_config.get('stuck_detection')
         )
         
-        # Termination Criterion
-        # Check for early stopping config
+        # Se configura el Criterio de Terminación.
+        # Definimos cuándo debe detenerse el algoritmo (por número de generaciones o si deja de mejorar).
         termination_config = alg_config.get('termination', {})
         
         if termination_config.get('enabled', False):
-            print(f"Early stopping enabled (ftol={termination_config.get('ftol')}, period={termination_config.get('period')})")
+            print(f"Detención temprana habilitada (ftol={termination_config.get('ftol')}, period={termination_config.get('period')})")
             termination = DefaultMultiObjectiveTermination(
                 xtol=1e-8,
                 cvtol=1e-6,
@@ -658,7 +687,7 @@ class MOEAD_ARM:
         else:
             termination = ('n_gen', n_gen)
 
-        # Execution
+        # Ejecución de la Optimización.
         try:
             res = minimize(
                 self.problem,
@@ -668,15 +697,15 @@ class MOEAD_ARM:
                 callback=callback,
                 verbose=False
             )
-        except MOEADDeadlockError as e:  # <--- CORRECCIÓN: Capturar la excepción real del detector
-            logger.warning("Optimization stopped by stuck detector: %s", e)
-            print(f"\n[!] Optimization stopped by stuck detector: {e}")
-            # Recuperar la mejor población encontrada hasta el momento
+        except MOEADDeadlockError as e:
+            # Si el detector de estancamiento detiene el proceso, capturamos el error para guardar lo que llevamos.
+            logger.warning("Optimización detenida por el detector de estancamiento: %s", e)
+            print(f"\n[!] Optimización detenida: {e}")
+            # Se recupera la mejor población encontrada hasta el momento del fallo.
             current_opt = algorithm.opt if hasattr(algorithm, 'opt') and algorithm.opt is not None else algorithm.pop
             res = SimpleNamespace(opt=current_opt)
         except Exception as e:
-            logger.exception("Optimization aborted by unexpected error: %s", e)
+            logger.exception("Optimización abortada por error inesperado: %s", e)
             raise
         
         return res
-

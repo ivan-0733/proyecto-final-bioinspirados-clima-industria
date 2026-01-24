@@ -42,10 +42,10 @@
     },
     
     "decomposition": {
-      "_comment": "Se utiliza el método PBI (Penalty-based Boundary Intersection) para descomponer el problema complejo de 5 objetivos en subproblemas escalares más sencillos, manteniendo un balance entre convergencia y diversidad de soluciones.",
-      "method": "pbi",
+      "_comment": "Se utiliza Tchebycheff Aumentado para evitar óptimos débiles en el espacio de 5 objetivos.",
+      "method": "augmented_tchebycheff",
       "params": { 
-        "theta": 5.0
+        "rho": 0.01
       }
     },
     

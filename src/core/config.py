@@ -92,7 +92,7 @@ class StuckDetectionConfig(BaseModel):
 
 class DecompositionConfig(BaseModel):
     """Decomposition method for MOEA/D."""
-    method: Literal["pbi", "tchebycheff", "tcheb", "weighted_sum", "ws"] = "tchebycheff"
+    method: Literal["pbi", "tchebycheff", "tcheb", "weighted_sum", "ws", "augmented_tchebycheff"] = "tchebycheff"
     params: Dict[str, Any] = Field(default_factory=dict)
 
 

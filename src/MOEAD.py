@@ -24,6 +24,7 @@ from pymoo.decomposition.pbi import PBI
 from pymoo.decomposition.tchebicheff import Tchebicheff as Tcheb
 from pymoo.decomposition.weighted_sum import WeightedSum as WS
 from pymoo.termination.default import DefaultMultiObjectiveTermination
+from pymoo.core.decomposition import Decomposition
 
 from src.representation import RuleIndividual
 from src.operators import DiploidNPointCrossover, ARMSampling, PregeneratedSampling
@@ -33,6 +34,7 @@ from src.metrics import MetricsFactory
 from src.loggers import DiscardedRulesLogger
 from src.optimization import AdaptiveControl, ProbabilityConfig, StuckDetector
 from src.core.exceptions import MOEADDeadlockError
+
 
 def get_H_from_N(N, M):
     """
@@ -63,6 +65,34 @@ from types import SimpleNamespace
 
 logger = logging.getLogger(__name__)
 
+class AugmentedTchebycheff(Decomposition):
+    """
+    Implementación del Tchebycheff Aumentado (Augmented Tchebycheff).
+    Minimiza: max(w * |F - z*|) + rho * sum(|F - z*|)
+    
+    Evita soluciones débilmente Pareto-óptimas que el Tchebycheff estándar permite
+    cuando los pesos son cercanos a cero.
+    """
+    def __init__(self, rho=0.01):
+        super().__init__()
+        self.rho = rho
+
+    def _do(self, F, weights, **kwargs):
+        ideal_point = kwargs["ideal_point"]
+        
+        # Calcular diferencia absoluta respecto al punto ideal
+        diff = np.abs(F - ideal_point)
+        
+        # 1. Parte Tchebycheff estándar: max(peso * diferencia)
+        # Nota: pymoo a veces maneja normalización interna, pero aquí usamos la definición clásica
+        # Aseguramos que las dimensiones coincidan para broadcasting
+        weighted_diff = weights * diff
+        term_max = np.max(weighted_diff, axis=1)
+        
+        # 2. Parte Aumentada: rho * suma(diferencia)
+        term_sum = np.sum(diff, axis=1)
+        
+        return term_max + self.rho * term_sum
 
 class AdaptiveMOEAD(MOEAD):
     """
@@ -649,6 +679,11 @@ class MOEAD_ARM:
             decomposition = PBI(theta=params.get('theta', 5.0))
         elif method == 'tchebycheff' or method == 'tcheb':
             decomposition = Tcheb()
+        elif method == 'augmented_tchebycheff' or method == 'improved_tchebycheff':
+            # Implementación Mejorada
+            rho_val = params.get('rho', 0.01) # Valor por defecto recomendado
+            decomposition = AugmentedTchebycheff(rho=rho_val)
+
         elif method == 'weighted_sum' or method == 'ws':
             decomposition = WS()
         else:

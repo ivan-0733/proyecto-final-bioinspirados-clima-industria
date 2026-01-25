@@ -78,18 +78,24 @@ class AugmentedTchebycheff(Decomposition):
         self.rho = rho
 
     def _do(self, F, weights, **kwargs):
-        ideal_point = kwargs["ideal_point"]
+        # ✅ CORRECCIÓN: Usar .get() con fallback
+        ideal_point = kwargs.get("ideal_point")
         
-        # Calcular diferencia absoluta respecto al punto ideal
+        if ideal_point is None:
+            # Fallback: usar el mínimo observado en cada objetivo
+            if F.ndim == 1:
+                ideal_point = F
+            else:
+                ideal_point = np.min(F, axis=0)
+        
+        ideal_point = np.asarray(ideal_point)
         diff = np.abs(F - ideal_point)
         
-        # 1. Parte Tchebycheff estándar: max(peso * diferencia)
-        # Nota: pymoo a veces maneja normalización interna, pero aquí usamos la definición clásica
-        # Aseguramos que las dimensiones coincidan para broadcasting
+        if diff.ndim == 1:
+            diff = diff.reshape(1, -1)
+        
         weighted_diff = weights * diff
         term_max = np.max(weighted_diff, axis=1)
-        
-        # 2. Parte Aumentada: rho * suma(diferencia)
         term_sum = np.sum(diff, axis=1)
         
         return term_max + self.rho * term_sum

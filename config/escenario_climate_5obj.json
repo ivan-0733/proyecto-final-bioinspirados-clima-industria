@@ -1,5 +1,5 @@
 {
-  "_comment_config": "Se establece la configuración diseñada para utilizar valores continuos del dataset original durante la evaluación de métricas climáticas, garantizando una precisión real en los objetivos de sostenibilidad.",
+  "_comment_config": "CONFIGURACIÓN CORREGIDA - El problema estaba en metric_thresholds que contenía claves de exclusions",
   
   "experiment": {
     "name": "MOEAD_Climate_5Obj_WorldReady",
@@ -10,7 +10,7 @@
   },
   
   "dataset": {
-    "_comment_data_strategy": "Se definen dos rutas de datos para mantener la armonía del sistema: el archivo procesado se utiliza para filtrar y navegar el espacio de búsqueda discreto, mientras que el archivo raw se carga para calcular el impacto real en las métricas climáticas (CO2, energía, etc.) usando valores continuos.",
+    "_comment_data_strategy": "Se definen dos rutas de datos para mantener la armonía del sistema",
     "name": "climate_energy",
     "processed_path": "data/processed/climate_dataset/climate_dataset_processed.csv",
     "raw_path": "data/raw/climate_dataset/global_climate_energy_2020_2024.csv",
@@ -21,17 +21,12 @@
   "use_sampling": false,
   
   "algorithm": {
-    "_comment_generations": "Se define un número de generaciones suficiente para permitir que el algoritmo evolutivo madure y converja hacia soluciones climáticas óptimas sin incurrir en un costo computacional excesivo.",
     "generations": 300,
-    
-    "_comment_pop_size": "Se calcula el tamaño de la población basándose en el método Das-Dennis para 5 objetivos, lo cual genera exactamente 126 direcciones de referencia necesarias para cubrir uniformemente el espacio de soluciones multidimensional.",
     "population_size": 126,
-    
     "logging_interval": 10,
     
     "termination": {
       "enabled": true,
-      "_comment": "Se activa la finalización temprana para detener el proceso si se detecta que las mejoras en el frente de Pareto son insignificantes durante un periodo determinado, optimizando así el uso de recursos.",
       "ftol": 1e-06,
       "period": 50
     },
@@ -42,7 +37,6 @@
     },
     
     "decomposition": {
-      "_comment": "Se utiliza Tchebycheff Aumentado para evitar óptimos débiles en el espacio de 5 objetivos.",
       "method": "augmented_tchebycheff",
       "params": { 
         "rho": 0.01
@@ -50,7 +44,6 @@
     },
     
     "neighborhood": {
-      "_comment": "Se define un vecindario para cada solución, permitiendo que los individuos intercambien información genética con sus vecinos cercanos para mejorar localmente sin perder la exploración global.",
       "size": 20,
       "replacement_size": 2,
       "selection_probability": 0.9
@@ -65,7 +58,6 @@
         }
       },
       "mutation": {
-        "_comment": "Se configura una estrategia de mutación conservadora que altera levemente las reglas (extendiendo o contrayendo condiciones) para explorar variantes cercanas sin destruir la estructura de las reglas de alta calidad ya encontradas.",
         "method": "conservative",
         "active_ops": ["extension", "contraction", "replacement"],
         "probability": {
@@ -84,7 +76,6 @@
     
     "stuck_detection": {
       "enabled": true,
-      "_comment": "Se implementa un mecanismo de seguridad estricto que reinicia o detiene la búsqueda si no se generan nuevas reglas válidas en una ventana de tiempo, evitando que el algoritmo pierda tiempo en callejones sin salida.",
       "window": 50,
       "min_new": 5,
       "hv_window": 50,
@@ -93,7 +84,6 @@
   },
   
   "objectives": {
-    "_comment": "Se normalizan los 5 objetivos al rango [0,1] y se tratan internamente como problemas de minimización para que el algoritmo matemático funcione uniformemente, independientemente de si la meta real es aumentar (renovables) o reducir (emisiones).",
     "selected": [
       "co2_emission",
       "energy_consumption",
@@ -102,7 +92,6 @@
       "energy_price"
     ],
     "directions": {
-      "_comment": "Se especifican las direcciones reales de optimización para facilitar la interpretación humana en los reportes finales, distinguiendo qué métricas se buscan maximizar y cuáles minimizar.",
       "co2_emission": "minimize",
       "energy_consumption": "minimize",
       "renewable_share": "maximize",
@@ -113,19 +102,16 @@
   
   "constraints": {
     "rule_validity": {
-      "_comment": "Se permite una mayor complejidad en los antecedentes y consecuentes para descubrir patrones climáticos y de industria específicos y detallados, en lugar de reglas generales y obvias.",
       "min_antecedent_items": 1,
       "min_consequent_items": 1,
       "max_antecedent_items": 5,
       "max_consequent_items": 3
     },
     "metric_thresholds": {
-      "_comment": "Se eliminan los umbrales rígidos para permitir que el algoritmo explore libremente todo el espacio de búsqueda y encuentre compromisos (trade-offs) interesantes entre los objetivos en conflicto.",
-      "fixed_antecedents": [],
-      "fixed_consequents": [],
-      "forbidden_pairs": []
+      "_comment": "CORREGIDO: Este objeto debe estar VACÍO o contener solo umbrales de métricas reales"
     },
     "exclusions": {
+      "_comment": "Las exclusiones van aquí, NO en metric_thresholds",
       "fixed_antecedents": [],
       "fixed_consequents": [],
       "forbidden_pairs": []
@@ -133,7 +119,6 @@
   },
   
   "hypervolume": {
-    "_comment": "Se configura el cálculo del hipervolumen, una métrica global que resume qué tan bien el conjunto de soluciones domina el espacio objetivo y qué tan diversas son las opciones encontradas.",
     "reference_point": "nadir",
     "nadir_value": 1.1,
     "filter_invalid": true,
